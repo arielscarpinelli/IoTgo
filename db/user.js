@@ -157,4 +157,9 @@ schema.static('setPassword', function (email, password, callback) {
   });
 });
 
+schema.static('findByOAuthToken', async function (token) {
+  // TODO
+  return this.findOne();
+});
+
 module.exports = mongoose.model('User', schema);

@@ -58,11 +58,11 @@ schema.static('exists', function (apikey, deviceid, callback) {
 });
 
 schema.static('getDeviceByDeviceid', function (deviceid, callback) {
-  this.where({ deviceid: deviceid }).findOne(callback);
+  return this.where({ deviceid: deviceid }).findOne(callback);
 });
 
 schema.static('getDevicesByApikey', function (apikey, callback) {
-  this.where('apikey', apikey).find(callback);
+  return this.where('apikey', apikey).find(callback);
 });
 
 schema.static('getNextDeviceid', function (type, callback) {

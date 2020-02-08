@@ -7,6 +7,8 @@ var http = require('./http');
 var config = require('../config');
 var user = require('./user');
 var admin = require('./admin');
+var google = require('./google-smart-home');
+var oauth = require('./oauth');
 var debug = require('debug')('iotgo');
 
 /**
@@ -30,5 +32,9 @@ router.route('/http').post(http).all(function (req, res) {
 
 router.use('/user', user);
 router.use('/admin', admin);
+
+router.use('/google', google);
+
+router.use('/oauth', oauth);
 
 module.exports = router;
