@@ -134,6 +134,7 @@ app.onSync(async (body, headers) => {
                     id: device.deviceid,
                     type: getGoogleDeviceType(device.type),
                     traits: device.traits.map(getGoogleTrait),
+                    attributes: device.attributes,
                     name: {
                         name: device.name,
                     },
