@@ -67,10 +67,10 @@
             <label class="col-sm-4 control-label">Device Type</label>
             <div class="col-sm-6">
               <select ng-model="device.type" class="form-control">
-                <option value="01">01 (Power switch)</option>
-                <option value="02">02 (Simple light)</option>
-                <option value="03">03 (Temperature and humidity sensor)</option>
-                <option value="00">00 (Custom device type)</option>
+                <option value="SWITCH">Switch</option>
+                <option value="LIGHT">LIGHT</option>
+                <option value="THERMOSTAT">THERMOSTAT</option>
+                <!-- TODO: add an open option -->
               </select>
             </div>
           </div>
@@ -169,6 +169,8 @@
 
       <div class="modal-body text-center">
         <div ng-include="activeDevice.type | typeToHtml:'/views/types/'"></div>
+
+        <div><pre>{{activeDevice.attributes | json}}</pre></div>
       </div>
 
       <div class="modal-footer">

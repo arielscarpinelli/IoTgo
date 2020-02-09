@@ -103,12 +103,12 @@ angular.module('iotgo')
       });
     };
 
-    $scope.turnOn = function (device, property) {
-      update(device, property, 'on');
+    $scope.turnOn = function (device) {
+      update(device, 'on', true);
     };
 
-    $scope.turnOff = function (device, property) {
-      update(device, property, 'off');
+    $scope.turnOff = function (device) {
+      update(device, 'on', false);
     };
 
     $scope.isDeviceOnline = function (device) {
@@ -117,32 +117,6 @@ angular.module('iotgo')
       return device.online ? 'Device Online' : ' Device Offline';
     };
 
-    $scope.addTimer = function (actionName) {
-      var timerAt = angular.element('#timerAt').val();
-      var timerAction = angular.element('#timerAction label.active input').val();
-      if (! timerAt || ! timerAction) {
-        $window.alert('Please specify timer details!');
-        return;
-      }
-
-      var timer = {
-        enabled: true,
-        type: 'once',
-        at: (new Date(timerAt)).toISOString(),
-        do: {}
-      };
-      timer.do[actionName] = timerAction;
-
-      var timers = angular.extend([], $scope.activeDevice.params.timers || []);
-      timers.push(timer);
-      update($scope.activeDevice, 'timers', timers);
-    };
-
-    $scope.removeTimer = function (timer) {
-      var timers = angular.extend([], $scope.activeDevice.params.timers);
-      timers.splice(timers.indexOf(timer), 1);
-      update($scope.activeDevice, 'timers', timers);
-    };
 
     var groupBy = function (input, property) {
       if (! angular.isArray(input) || ! angular.isString(property)) {

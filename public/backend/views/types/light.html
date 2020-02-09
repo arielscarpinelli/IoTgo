@@ -1,12 +1,12 @@
 <div class="device-params">
-  Light: {{activeDevice.params.light | uppercase}}
+  Light: {{activeDevice.params.on | uppercase}}
 </div>
 <div>
   <div class="btn-group">
-    <button ng-click="turnOn(activeDevice, 'light')"
+    <button ng-click="turnOn(activeDevice)"
             ng-disabled="activeDevice.params.light === 'on'"
             type="button" class="btn btn-success">Light On</button>
-    <button ng-click="turnOff(activeDevice, 'light')"
+    <button ng-click="turnOff(activeDevice)"
             ng-disabled="activeDevice.params.light === 'off'"
             type="button" class="btn btn-warning">Light Off</button>
   </div>

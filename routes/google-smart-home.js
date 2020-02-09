@@ -16,7 +16,7 @@ module.exports.route('/fulfillment')
         res.send(405).end();
     });
 
-const getUserByAuthHeader = function (authHeader) {
+const getUserByAuthHeader = (authHeader) => {
     const token = (authHeader || "").substr(7);
 
     // TODO validate non-expired token
@@ -25,7 +25,7 @@ const getUserByAuthHeader = function (authHeader) {
 
 };
 
-const validateAccessToken = async function (req, res, next) {
+const validateAccessToken = async (req, res, next) => {
 
     const user = await getUserByAuthHeader(req.header("Authorization"));
 
@@ -41,6 +41,21 @@ const validateAccessToken = async function (req, res, next) {
 
 exports.use(validateAccessToken);
 
+
+const getDeviceState = (device) => {
+    return {
+        online: device.online,
+        ...device.params
+    };
+};
+
+const getGoogleDeviceType = (type) => {
+    return "action.devices.types." + type;
+};
+
+const getGoogleTrait = (trait) => {
+    return "action.devices.traits." + trait;
+};
 
 // Register handlers for Smart Home intents
 
@@ -60,7 +75,7 @@ app.onExecute(async (body) => {
         for (const device of command.devices) {
             for (const execution of command.execution) {
                 executePromises.push(
-                    updateDevice(execution,device.id)
+                    updateDevice(execution, device.id)
                         .then((data) => {
                             result.ids.push(device.id);
                             Object.assign(result.states, data);
@@ -89,12 +104,9 @@ app.onQuery(async (body, headers) => {
     for (const device of intent.payload.devices) {
         const deviceId = device.id;
         queryPromises.push(Device.getDeviceByDeviceid(deviceId)
-            .then((data) => {
+            .then((device) => {
                     // Add response to device payload
-                    payload.devices[deviceId] = {
-                        online: device.online,
-                        on: !!device.params.switch.on
-                    };
+                    payload.devices[deviceId] = getDeviceState(device);
                 }
             ));
     }
@@ -120,12 +132,10 @@ app.onSync(async (body, headers) => {
             devices: devices.map(device => {
                 return {
                     id: device.deviceid,
-                    type: 'action.devices.types.SWITCH',
-                    traits: [
-                        'action.devices.traits.OnOff'
-                    ],
+                    type: getGoogleDeviceType(device.type),
+                    traits: device.traits.map(getGoogleTrait),
                     name: {
-                        name: device.name
+                        name: device.name,
                     },
                     willReportState: true
                 }
