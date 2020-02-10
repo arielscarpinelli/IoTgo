@@ -68,7 +68,8 @@ exports.update = function (req, callback) {
     }
     device.save();
     callback(interceptors(req, {
-      error: 0
+      error: 0,
+      params: device.params
     }));
 
     exports.emit('update', req);
@@ -76,13 +77,6 @@ exports.update = function (req, callback) {
 };
 
 exports.query = function (req, callback) {
-  if (! Array.isArray(req.params)) {
-    callback(interceptors(req, {
-      error: 400,
-      reason: 'Bad Request'
-    }));
-    return;
-  }
 
   Device.exists(req.apikey, req.deviceid, function (err, device) {
     if (err || ! device) {
@@ -93,7 +87,7 @@ exports.query = function (req, callback) {
       return;
     }
 
-    if (! req.params.length) {
+    if (!req.params || !req.params.length) {
       callback(interceptors(req, {
         error: 0,
         params: device.params

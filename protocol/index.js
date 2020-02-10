@@ -23,7 +23,7 @@ var validate = function (req) {
     return false;
   }
 
-  if (! /^[0-9a-f]{10}$/.test(req.deviceid)) {
+  if (! /^[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}$/.test(req.deviceid)) {
     return false;
   }
 
@@ -48,7 +48,7 @@ var removePendingRequest = function (sequence) {
 module.exports = exports;
 mixin(exports, EventEmitter.prototype);
 
-exports.postRequest = function (req, callback) {
+const _postRequest = function (req, callback) {
   if (! validate(req)) {
     callback(interceptors(req, { error: 400, reason: 'Bad Request' }));
     return;
@@ -62,8 +62,7 @@ exports.postRequest = function (req, callback) {
     return;
   }
 
-  if (req.action !== 'update' ||  utils.fromDevice(req) ||
-      ! utils.isFactoryDeviceid(req.deviceid)) {
+  if (req.action !== 'update' ||  utils.fromDevice(req)) {
     methods[req.action](req, callback);
     return;
   }
@@ -101,10 +100,25 @@ exports.postRequest = function (req, callback) {
       req: req,
       callback: callback,
       timer: setTimeout(removePendingRequest,
-        config.pendingRequestTimeout || 3000,
-        req.sequence)
+          config.pendingRequestTimeout || 3000,
+          req.sequence)
     };
   });
+};
+
+exports.postRequest = function(req, callback) {
+  return new Promise((resolve, reject) => {
+    _postRequest(req, (res) => {
+      if (!res.error) {
+        resolve(res);
+      } else {
+        reject(res);
+      }
+      if (callback) {
+        callback(res);
+      }
+    })
+  })
 };
 
 exports.postResponse = function (res) {
@@ -148,6 +162,10 @@ exports.postMessage = function (msg) {
       });
       break;
   }
+};
+
+exports.deviceChange = (device) => {
+  exports.emit('device.change', device);
 };
 
 exports.utils = utils;

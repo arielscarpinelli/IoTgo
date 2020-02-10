@@ -5,8 +5,16 @@ const {smarthome} = require('actions-on-google');
 
 const {User, Device} = require('../db/index');
 
+const protocol = require('../protocol/index');
+
+var config = require('../config');
+
+var uuid = require('uuid');
+
 // Create an app instance
-const app = smarthome();
+const app = smarthome({
+    jwt: config.smarthomejwt
+});
 
 module.exports = exports = express.Router();
 
@@ -57,44 +65,87 @@ const getGoogleTrait = (trait) => {
     return "action.devices.traits." + trait;
 };
 
+
+const updateDevice = (execution, apikey, deviceid) => {
+
+    // TODO: we should check the command and filter/translate the params...
+
+    return protocol.postRequest({
+        action: 'update',
+        params: execution.params,
+        deviceid: deviceid,
+        apikey: apikey,
+        userAgent: 'google'
+    }).then(res => {
+        return {
+            params: res.params || execution.params
+        }
+    })
+};
+
 // Register handlers for Smart Home intents
 
-app.onExecute(async (body) => {
+app.onExecute(async (body, headers) => {
+
+    const user = await getUserByAuthHeader(headers.authorization);
+
     const {requestId} = body;
     // Execution results are grouped by status
-    const result = {
-        ids: [],
-        status: 'SUCCESS',
-        states: {
-            online: true,
-        },
-    };
+
+    const commands = [];
+
     const executePromises = [];
     const intent = body.inputs[0];
     for (const command of intent.payload.commands) {
         for (const device of command.devices) {
             for (const execution of command.execution) {
                 executePromises.push(
-                    updateDevice(execution, device.id)
+                    updateDevice(execution, user.apikey, device.id)
                         .then((data) => {
-                            result.ids.push(device.id);
-                            Object.assign(result.states, data);
+                            commands.push({
+                                ids: [device.id],
+                                status: 'SUCCESS',
+                                states: {
+                                    online: true,
+                                    ...data.params
+                                },
+                            });
                         })
-                        .catch(() => console.error(`Unable to update ${device.id}`))
+                        .catch((err) => {
+                            if (err && err.error === 503) {
+                                commands.push({
+                                    ids: [device.id],
+                                    status: 'OFFLINE'
+                                })
+                            } else {
+                                commands.push({
+                                    ids: [device.id],
+                                    status: 'ERROR',
+                                    errorCode: err && (err.reason || err.error)
+                                })
+                            }
+                        })
                 );
             }
         }
     }
     await Promise.all(executePromises);
-    return {
+
+    const result = {
         requestId: requestId,
         payload: {
-            commands: [result],
+            commands: commands,
         },
     };
+
+    console.debug(JSON.stringify(result, null, 4));
+
+    return result;
 });
 
 app.onQuery(async (body, headers) => {
+
+    const user = await getUserByAuthHeader(headers.authorization);
 
     const payload = {
         devices: {},
@@ -103,7 +154,7 @@ app.onQuery(async (body, headers) => {
     const intent = body.inputs[0];
     for (const device of intent.payload.devices) {
         const deviceId = device.id;
-        queryPromises.push(Device.getDeviceByDeviceid(deviceId)
+        queryPromises.push(Device.exists(user.apikey, deviceId)
             .then((device) => {
                     // Add response to device payload
                     payload.devices[deviceId] = getDeviceState(device);
@@ -113,19 +164,22 @@ app.onQuery(async (body, headers) => {
 
     await Promise.all(queryPromises);
 
-    return {
+    const result = {
         requestId: body.requestId,
         payload: payload,
-    }
+    };
+
+    console.debug(JSON.stringify(result, null, 4));
+
+    return result
 });
 
 app.onSync(async (body, headers) => {
 
     const user = await getUserByAuthHeader(headers.authorization);
-    console.log(user.apikey);
     const devices = await Device.getDevicesByApikey(user.apikey);
 
-    return {
+    const result = {
         requestId: body.requestId,
         payload: {
             agentUserId: user.apikey,
@@ -143,11 +197,43 @@ app.onSync(async (body, headers) => {
             })
         },
     };
+
+    console.debug(JSON.stringify(result, null, 4));
+
+    return result;
 });
 
 app.onDisconnect(async (body, headers) => {
     // TODO remove access tokens (?)
 });
 
-// TODO ReportState pushing updates
-// TODO request sync when new device is added
+protocol.on('device.update', async function (req) {
+
+    const requestBody = {
+        requestId: uuid.v4(), /* Any unique ID */
+        agentUserId: req.apikey, /* Hardcoded user ID */
+        payload: {
+            devices: {
+                states: {
+                    /* Report the current state of our washer */
+                    [req.deviceid]: {
+                        ...req.params
+                    },
+                },
+            },
+        },
+    };
+
+    console.debug("Report state: ", JSON.stringify(requestBody, null, 4));
+
+    const res = await app.reportState(requestBody);
+    console.info('Report state response:', res);
+
+});
+
+protocol.on('device.change', async function (req) {
+
+    const res = await app.requestSync(req.apikey);
+
+    console.info('Request sync ' + req.apikey + ':', res);
+});

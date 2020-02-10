@@ -69,13 +69,13 @@ protocol.on('device.update', function (req) {
 });
 
 protocol.on('device.online', function (req) {
+  console.debug(JSON.stringify(req));
   postRequestToApps(req);
 });
 
 protocol.on('app.update', function (req) {
   devices[req.deviceid] && devices[req.deviceid].forEach(function (ws) {
-    // Transform timers for ITEAD indie device
-    postRequest(ws, protocol.utils.transformRequest(req));
+    postRequest(ws, req);
   });
 });
 
@@ -112,11 +112,6 @@ module.exports = function (httpServer) {
         case Types.REQUEST:
           msg.ws = ws;
           protocol.postRequest(msg, function (res) {
-            // Transform timers for ITEAD indie device
-            if (protocol.utils.fromDevice(msg) &&
-                protocol.utils.isFactoryDeviceid(msg.deviceid)) {
-              res = protocol.utils.transformResponse(res);
-            }
             ws.send(JSON.stringify(res));
 
             if (res.error) return;

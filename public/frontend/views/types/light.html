@@ -1,5 +1,5 @@
 <div class="device-params">
-  Light: {{activeDevice.params.on | uppercase}}
+  Light: {{activeDevice.params.on ? "On" : "Off"}}
 </div>
 
 <div ng-if="isDeviceOnline(activeDevice)">
@@ -9,10 +9,10 @@
 <div style="margin-top: 1em">
   <div class="btn-group">
     <button ng-click="turnOn(activeDevice)"
-            ng-disabled="activeDevice.params.light === 'on'"
+            ng-disabled="activeDevice.params.on === true"
             type="button" class="btn btn-success">Light On</button>
     <button ng-click="turnOff(activeDevice)"
-            ng-disabled="activeDevice.params.light === 'off'"
+            ng-disabled="activeDevice.params.on === false"
             type="button" class="btn btn-warning">Light Off</button>
   </div>
 </div>

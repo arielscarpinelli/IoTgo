@@ -3,6 +3,7 @@
  */
 var mongoose = require('mongoose');
 var uuid = require('uuid');
+var protocol = require('../protocol');
 
 /**
  * Private variables and functions
@@ -34,7 +35,7 @@ var schema = new Schema({
 });
 
 schema.static('exists', function (apikey, deviceid, callback) {
-  this.where({ apikey: apikey, deviceid: deviceid }).findOne(callback);
+  return this.where({ apikey: apikey, deviceid: deviceid }).findOne(callback);
 });
 
 schema.static('getDeviceByDeviceid', function (deviceid, callback) {
@@ -51,11 +52,18 @@ schema.static('getDefaultTraitsForType', function (type) {
       return ["OnOff"];
     case "LIGHT":
       return ["OnOff"];
-    case "LIGHT":
-      return ["OnOff"];
+    case "THERMOSTAT":
+      return ["TemperatureSetting"];
 
   }
 });
 
+schema.post('save', function(doc) {
+  protocol.deviceChange(doc);
+});
+
+schema.post('remove', function(doc) {
+  protocol.deviceChange(doc);
+});
 
 module.exports = mongoose.model('Device', schema);
