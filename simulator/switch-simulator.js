@@ -10,7 +10,7 @@ const state = {
 
 // TODO: read keyboard to switch the state
 
-const ws = new WebSocket(HOST, {
+const ws = new WebSocket(HOST + "?deviceid=" + DEVICE_ID + "&apikey=" + APIKEY, {
     perMessageDeflate: false
 });
 

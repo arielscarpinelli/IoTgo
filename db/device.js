@@ -3,7 +3,6 @@
  */
 var mongoose = require('mongoose');
 var uuid = require('uuid');
-var protocol = require('../protocol');
 
 /**
  * Private variables and functions
@@ -59,11 +58,11 @@ schema.static('getDefaultTraitsForType', function (type) {
 });
 
 schema.post('save', function(doc) {
-  protocol.deviceChange(doc);
+  require('../protocol').deviceChange(doc);
 });
 
 schema.post('remove', function(doc) {
-  protocol.deviceChange(doc);
+  require('../protocol').deviceChange(doc);
 });
 
 module.exports = mongoose.model('Device', schema);

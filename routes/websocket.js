@@ -1,82 +1,88 @@
 /**
  * Dependencies
  */
-var Server = require('ws').Server;
-var protocol = require('../protocol/index');
-var mixin = require('utils-merge');
+const Server = require('ws').Server;
+const protocol = require('../protocol/index');
+const mixin = require('utils-merge');
+const jwt = require('jsonwebtoken');
+const config = require('../config');
+const url = require('url');
+const Device = require('../db').Device;
 
 /**
  * Private variables and functions
  */
 
-var devices = {}; // { deviceid: [ws, ws, ws] }
-var apps = {};  // { deviceid: [ws, ws, ws] }
+const devices = {}; // { deviceid: [ws, ws, ws] }
+const apps = {};  // { deviceid: [ws, ws, ws] }
 
-var clean = function (ws) {
-  ws.devices.forEach(function (deviceid) {
-    if (Array.isArray(devices[deviceid]) && devices[deviceid][0] === ws) {
-      delete devices[deviceid];
-      protocol.postMessage({
-        type: 'device.online',
-        deviceid: deviceid,
-        online: false
-      });
-    }
+const clean = function (ws) {
+	if (ws.deviceid) {
+		const deviceid = ws.deviceid;
+		if (Array.isArray(devices[deviceid]) && devices[deviceid][0] === ws) {
+			delete devices[deviceid];
+			protocol.postMessage({
+				type: 'device.online',
+				deviceid: deviceid,
+				online: false
+			});
+		}
 
-    var pos, wsList = apps[deviceid];
-    if (wsList && (pos = wsList.indexOf(ws)) !== -1) {
-      wsList.splice(pos, 1);
-      if (wsList.length === 0)  delete apps[deviceid];
-    }
-  });
+		var pos, wsList = apps[deviceid];
+		if (wsList && (pos = wsList.indexOf(ws)) !== -1) {
+			wsList.splice(pos, 1);
+			if (wsList.length === 0) delete apps[deviceid];
+		}
+	}
 };
 
-var Types = {
-  'REQUEST': 1,
-  'RESPONSE': 2,
-  'UNKNOWN': 0
-};
-var getType = function (msg) {
-  if (msg.action && msg.deviceid && msg.apikey) return Types.REQUEST;
-
-  if (typeof msg.error === 'number') return Types.RESPONSE;
-
-  return Types.UNKNOWN;
+const Types = {
+	'REQUEST': 1,
+	'RESPONSE': 2,
+	'UNKNOWN': 0
 };
 
-var postRequest = function (ws, req) {
-  if (req.ws && req.ws === ws) {
-    return;
-  }
+const getType = function (msg) {
+	if (msg.action && msg.deviceid && msg.apikey) return Types.REQUEST;
 
-  ws.send(JSON.stringify(req, function (key, value) {
-    if (key === 'ws') {
-      // exclude property ws from resulting JSON string
-      return undefined;
-    }
-    return value;
-  }));
+	if (typeof msg.error === 'number') return Types.RESPONSE;
+
+	return Types.UNKNOWN;
 };
 
-var postRequestToApps = function (req) {
-  apps[req.deviceid] && apps[req.deviceid].forEach(function (ws) {
-    postRequest(ws, req);
-  });
+const postRequest = function (ws, req) {
+	if (req.ws && req.ws === ws) {
+		return;
+	}
+
+	ws.send(JSON.stringify(req, function (key, value) {
+		if (key === 'ws') {
+			// exclude property ws from resulting JSON string
+			return undefined;
+		}
+		return value;
+	}));
+};
+
+const postRequestToApps = function (req) {
+	apps[req.deviceid] && apps[req.deviceid].forEach(function (ws) {
+		postRequest(ws, req);
+	});
 };
 
 protocol.on('device.update', function (req) {
-  postRequestToApps(req);
+	postRequestToApps(req);
 });
 
 protocol.on('device.online', function (req) {
-  console.debug(JSON.stringify(req));
-  postRequestToApps(req);
+	console.debug(JSON.stringify(req));
+	postRequestToApps(req);
 });
 
 protocol.on('app.update', function (req) {
-  devices[req.deviceid] && devices[req.deviceid].forEach(function (ws) {
-    postRequest(ws, req);
-  });
+	devices[req.deviceid] && devices[req.deviceid].forEach(function (ws) {
+		postRequest(ws, req);
+	});
 });
 
 /**
@@ -84,74 +90,105 @@ protocol.on('app.update', function (req) {
  */
 
 module.exports = function (httpServer) {
-  var server = new Server({
-    server: httpServer,
-    path: '/api/ws'
-  });
 
-  server.on('connection', function (ws) {
-    ws.devices = [];
+	const server = new Server({
+		server: httpServer,
+		path: '/api/ws',
+	});
 
-    ws.on('message', function (msg) {
-      try {
-        msg = JSON.parse(msg);
-      }
-      catch (err) {
-        // Ignore non-JSON message
-        return;
-      }
+	server.on('connection', async function (ws, req) {
 
-      switch (getType(msg)) {
-        case Types.UNKNOWN:
-          return;
+		try {
+			const query = url.parse(req.url, true).query;
 
-        case Types.RESPONSE:
-          protocol.postResponse(msg);
-          return;
+			if (query.deviceid && query.apikey) {
 
-        case Types.REQUEST:
-          msg.ws = ws;
-          protocol.postRequest(msg, function (res) {
-            ws.send(JSON.stringify(res));
+				const device = await Device.exists(query.apikey, query.deviceid);
+				if (!device) {
+					throw new Error("device not found for " + query.apikey + " " + query.deviceid);
+				}
 
-            if (res.error) return;
+				ws.deviceid = query.deviceid;
+			} else if (query.jwt) {
+				const decoded = jwt.verify(query.jwt, config.jwt.secret, config.jwt);
+				ws.apikey = decoded.apikey;
+			} else {
+				throw new Error("no credentials");
+			}
+		} catch (e) {
+			console.error(e);
+			ws.send(JSON.stringify({error: 401}));
+			ws.close();
+		}
 
-            // Message sent from device
-            if (protocol.utils.fromDevice(msg)) {
-              devices[msg.deviceid] = devices[msg.deviceid] || [];
+		ws.on('message', function (msg) {
 
-              if (devices[msg.deviceid][0] === ws) return;
+			try {
+				msg = JSON.parse(msg);
+			} catch (err) {
+				// Ignore non-JSON message
+				return;
+			}
 
-              devices[msg.deviceid] = [ws];
-              ws.devices.push(msg.deviceid);
-              protocol.postMessage({
-                type: 'device.online',
-                deviceid: msg.deviceid,
-                online: true
-              });
+			switch (getType(msg)) {
+				case Types.UNKNOWN:
+					return;
 
-              return;
-            }
+				case Types.RESPONSE:
+					protocol.postResponse(msg);
+					return;
 
-            // Message sent from apps
-            apps[msg.deviceid] = apps[msg.deviceid] || [];
+				case Types.REQUEST:
+					msg.ws = ws;
 
-            if (apps[msg.deviceid].indexOf(ws) !== -1) return;
+					if (ws.deviceid) {
+						msg.deviceid = ws.deviceid;
+					}
 
-            apps[msg.deviceid].push(ws);
-            ws.devices.push(msg.deviceid);
-          });
-      }
-    });
+					if (ws.apikey) {
+						msg.apikey = ws.apikey;
+					}
 
-    ws.on('close', function () {
-      clean(ws);
-    });
+					protocol.postRequest(msg, function (res) {
+						ws.send(JSON.stringify(res));
 
-    ws.on('error', function () {
-      clean(ws);
-    });
-  });
+						if (res.error) return;
+
+						// Message sent from device
+						if (protocol.utils.fromDevice(msg)) {
+							devices[msg.deviceid] = devices[msg.deviceid] || [];
+
+							if (devices[msg.deviceid][0] === ws) return;
+
+							devices[msg.deviceid] = [ws];
+							protocol.postMessage({
+								type: 'device.online',
+								deviceid: msg.deviceid,
+								online: true
+							});
+
+							return;
+						}
+
+						// Message sent from apps
+						apps[msg.deviceid] = apps[msg.deviceid] || [];
+
+						if (apps[msg.deviceid].indexOf(ws) !== -1) return;
+
+						apps[msg.deviceid].push(ws);
+					});
+			}
+		});
+
+
+		ws.on('close', function () {
+			clean(ws);
+		});
+
+		ws.on('error', function () {
+			clean(ws);
+		});
+
+	});
 
 };
-

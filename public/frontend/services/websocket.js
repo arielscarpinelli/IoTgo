@@ -1,11 +1,12 @@
 angular.module('iotgo')
 
-.factory('WS', [ 'Settings', function (Settings) {
+.factory('WS', [ 'Settings', '$window', function (Settings, $window) {
   var ws;
   var callbacks = [];
 
   var connect = function (send) {
-    ws = new WebSocket(Settings.websocketServer + '/api/ws');
+
+    ws = new WebSocket(Settings.websocketServer + '/api/ws?jwt=' + $window.sessionStorage.token);
 
     ws.addEventListener('message', function (message) {
       try {
@@ -31,8 +32,6 @@ angular.module('iotgo')
       ws.addEventListener('open', send);
     }
   };
-
-  connect();
 
   return {
     send: function (req) {
