@@ -1,12 +1,6 @@
 angular.module('iotgo')
 .controller('DevicesCtrl', [ '$scope', '$window', '$location', 'User', 'Devices',
   function ($scope, $window, $location, User, Devices) {
-    if (! User.isLoggedIn()) {
-      $window.alert('Restricted area, please login first!');
-      $location.path('/login');
-      return;
-    }
-
     var _devices;
 
     $scope.showModal = function (selector) {

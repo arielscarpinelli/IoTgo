@@ -118,7 +118,7 @@ exports.route('/register').post(function (req, res) {
                                     return;
                                 }
                                 res.send({
-                                    jwt: jsonWebToken.sign(user, config.jwt.secret),
+                                    jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
                                     user: user
                                 });
                             });
@@ -212,7 +212,7 @@ exports.route('/login').post(function (req, res) {
         }
 
         res.send({
-            jwt: jsonWebToken.sign(user, config.jwt.secret),
+            jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
             user: user
         });
     });

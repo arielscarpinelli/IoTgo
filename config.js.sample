@@ -8,6 +8,9 @@ module.exports = {
     }
   },
   jwt: {
+    options: {
+    	expiresIn: 3600,
+    },
     secret: 'jwt_secret'                // Shared secret to encrypt JSON Web Token
   },
   admin:{

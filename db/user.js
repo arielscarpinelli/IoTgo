@@ -22,9 +22,18 @@ var now = function () {
   return new Date();
 };
 var ACTIVE_TIME = 24 * 60 * 60 * 1000;
+
+
 /**
  * Exports
  */
+
+
+var oauthTokenSchema = new Schema({
+	refreshToken: {type: String, required: true, unique: true, index: true},
+	provider: {type: String, required: true, unique: true},
+});
+
 var schema = new Schema({
   email: {type: String, required: true, unique: true},
   password: {type: String, required: true, set: hash},
@@ -32,7 +41,8 @@ var schema = new Schema({
   createdAt: {type: Date, index: true, default: now},
   isActivated: {type: Boolean, default: false},
   token: {type: String},
-  validExpire: {type: Date}
+  validExpire: {type: Date},
+  oAuthTokens: [oauthTokenSchema]
 });
 
 schema.static('register', function (email, password, callback) {
@@ -157,9 +167,34 @@ schema.static('setPassword', function (email, password, callback) {
   });
 });
 
-schema.static('findByOAuthToken', async function (token) {
-  // TODO
-  return this.findOne();
+schema.static('setOAuthRefreshToken', async function (apikey, provider, refreshToken) {
+
+	const user = await this.where('apikey', apikey).findOne();
+
+	if (!user) {
+		throw new Error('User does not exist!');
+	}
+
+	const existing = user.oAuthTokens.find(token => token.provider === provider);
+
+	if (existing) {
+		existing.refreshToken = refreshToken;
+	} else {
+		user.oAuthTokens.push({
+			provider,
+			refreshToken
+		});
+	}
+
+	return user.save();
+
+});
+
+schema.static('findByOAuthRefreshToken', async function (provider, refreshToken) {
+  return this.findOne({
+	'oAuthTokens.refreshToken': refreshToken,
+	'oAuthTokens.provider': provider
+  });
 });
 
 module.exports = mongoose.model('User', schema);

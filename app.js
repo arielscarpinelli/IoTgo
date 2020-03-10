@@ -22,7 +22,7 @@ app.use('/api', routes);
 
 // catch 404 and redirect to /
 app.use(function(req, res, next) {
-  res.redirect('/?path=' + req.path);
+  res.status(200).sendFile('/', { root: __dirname + '/public/frontend' });
 });
 
 // error handlers

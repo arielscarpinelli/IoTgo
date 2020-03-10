@@ -1,5 +1,5 @@
 angular.module('iotgo').
-  factory('authInterceptor', [ '$window', '$q', function ($window, $q) {
+  factory('authInterceptor', ['$window', '$location', function ($window, $location) {
       return {
         request: function (config) {
           config.headers = config.headers || {};
@@ -10,7 +10,7 @@ angular.module('iotgo').
         },
         response: function (response) {
           if (response.status === 401) {
-            $window.alert('Restricted area, please log in first!');
+            $location.path('/login?returnTo=' + encodeURIComponent($location.path()));
             return;
           }
 

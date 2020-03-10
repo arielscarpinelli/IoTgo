@@ -1,15 +1,11 @@
 const express = require('express');
-
 // Import the appropriate service
 const {smarthome} = require('actions-on-google');
-
-const {User, Device} = require('../db/index');
-
+const { User, Device } = require('../db/index');
 const protocol = require('../protocol/index');
-
-var config = require('../config');
-
-var uuid = require('uuid');
+const jsonWebToken = require('jsonwebtoken');
+const config = require('../config');
+const uuid = require('uuid');
 
 // Create an app instance
 const app = smarthome({
@@ -27,9 +23,11 @@ module.exports.route('/fulfillment')
 const getUserByAuthHeader = (authHeader) => {
     const token = (authHeader || "").substr(7);
 
-    // TODO validate non-expired token
+    let decoded = jsonWebToken.verify(token, config.jwt.secret);
 
-    return User.findByOAuthToken(token);
+    console.debug(decoded);
+
+    return decoded;
 
 };
 
@@ -89,6 +87,9 @@ app.onExecute(async (body, headers) => {
 
     const user = await getUserByAuthHeader(headers.authorization);
 
+    console.info("onExecute");
+    console.debug(JSON.stringify(body, null, 4));
+
     const {requestId} = body;
     // Execution results are grouped by status
 
@@ -147,6 +148,9 @@ app.onQuery(async (body, headers) => {
 
     const user = await getUserByAuthHeader(headers.authorization);
 
+    console.info("onQuery");
+    console.debug(JSON.stringify(body, null, 4));
+
     const payload = {
         devices: {},
     };
@@ -177,6 +181,9 @@ app.onQuery(async (body, headers) => {
 app.onSync(async (body, headers) => {
 
     const user = await getUserByAuthHeader(headers.authorization);
+
+    console.info("onSync");
+
     const devices = await Device.getDevicesByApikey(user.apikey);
 
     const result = {

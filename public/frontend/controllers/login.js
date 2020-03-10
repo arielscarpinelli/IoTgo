@@ -8,7 +8,11 @@ angular.module('iotgo').
             return;
           }
 
-          $location.path('/devices');
+          if ($location.search().returnTo) {
+            $location.url($location.search().returnTo);
+          } else {
+            $location.path('/devices');
+          }
         });
       };
     }
