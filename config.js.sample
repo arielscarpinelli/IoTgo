@@ -34,7 +34,7 @@ module.exports = {
   oauth: {
     google: {
       clientId: "clientId",
-      secret: "secret"
+      clientSecret: "secret"
     }
   },
   smarthomejwt: {}

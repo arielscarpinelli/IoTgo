@@ -115,7 +115,7 @@ exports.route('/token').post(async (req, res) => {
 		try {
 			await User.setOAuthRefreshToken(apiKey, oauthClientConfig.provider, refreshToken);
 
-			const accessToken = generateAccessToken(oauthClientConfig, apiKey);
+			const accessToken = generateAccessToken(oauthClientConfig, apiKey, secondsInDay);
 
 			obj = {
 				token_type: 'bearer',
