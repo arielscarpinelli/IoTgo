@@ -109,7 +109,7 @@ exports.route('/register').post(function (req, res) {
                             var html = jade.renderFile(path.join(__dirname, '../template/activeEmail.jade'), {user: _user});
                             var mailOption = {
                                 to: email,
-                                subject: 'IoTgo: Confirm Your Email Address',
+                                subject: 'iotMaster: Confirm Your Email Address',
                                 html: html
                             };
                             email_util.sendMail(mailOption, function (err, body) {
@@ -143,7 +143,7 @@ exports.route('/activeAccount').get(function (req, res) {
     var email = req.user.email;
     var token = uuid.v4();
     User.resetToken(email, token, function (err, user, msg) {
-        if (err) {
+        if (err || !user) {
             res.send({error: err});
             return;
         }
@@ -156,7 +156,7 @@ exports.route('/activeAccount').get(function (req, res) {
             var html = jade.renderFile(path.join(__dirname, '../template/activeEmail.jade'), {user: _user});
             var mailOption = {
                 to: email,
-                subject: 'IoTgo: Confirm Your Email Address',
+                subject: 'iotMaster: Confirm Your Email Address',
                 html: html
             };
             email_util.sendMail(mailOption, function (err, body) {
