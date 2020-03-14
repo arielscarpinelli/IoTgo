@@ -90,6 +90,7 @@ exports.route('/register').post(function (req, res) {
 
                 User.register(email, password, function (err, user) {
                     if (err) {
+                        console.log(err);
                         res.send({
                             error: 'Email address already exists, please choose another one.'
                         });
