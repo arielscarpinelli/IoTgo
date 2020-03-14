@@ -30,3 +30,5 @@ node_modules
 # IoTgo configuration
 config.js
 .DS_Store
+
+config.h
