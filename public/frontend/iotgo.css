@@ -8,7 +8,7 @@ body {
 .navbar-brand {
   text-indent: -9999px;
   background: transparent url(images/logo.png) 0 0 no-repeat scroll;
-  width: 95px;
+  width: 220px;
 }
 .iotgo-menu {
   margin-left: 2em;
@@ -88,12 +88,6 @@ body {
   color: #FFF;
   background-color: #444;
   padding: 1em;
-}
-.copyright .logo-grey {
-  text-indent: -9999px;
-  background: transparent url(images/logo-grey.png) left center no-repeat scroll;
-  padding: 1em 0;
-  margin: -1em 0;
 }
 .copyright a {
   color: #FFF;

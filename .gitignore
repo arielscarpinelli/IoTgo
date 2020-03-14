@@ -29,3 +29,4 @@ node_modules
 *.iml
 # IoTgo configuration
 config.js
+.DS_Store
