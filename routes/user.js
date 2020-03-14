@@ -48,7 +48,7 @@ exports.use(activedAccountOnly.unless({
     path: ['/api/user/register', '/api/user/login', '/api/user/activeAccount', '/api/user/validate']
 }));
 
-let resetEmailActivationToken = function(callback) {
+let resetEmailActivationToken = function(email, callback) {
     var token = uuid.v4();
     User.resetToken(email, token, function (err, user, msg) {
         if (err) {
