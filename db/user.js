@@ -30,8 +30,8 @@ var ACTIVE_TIME = 24 * 60 * 60 * 1000;
 
 
 var oauthTokenSchema = new Schema({
-	refreshToken: {type: String, required: true, unique: true, index: true},
-	provider: {type: String, required: true, unique: true},
+	refreshToken: {type: String, index: true},
+	provider: {type: String},
 });
 
 var schema = new Schema({
