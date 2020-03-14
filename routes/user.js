@@ -48,6 +48,29 @@ exports.use(activedAccountOnly.unless({
     path: ['/api/user/register', '/api/user/login', '/api/user/activeAccount', '/api/user/validate']
 }));
 
+let resetEmailActivationToken = function(callback) {
+    var token = uuid.v4();
+    User.resetToken(email, token, function (err, user, msg) {
+        if (err) {
+            res.send({error: err});
+            return;
+        }
+        var host = config.host;
+        var href = "https://" + host;
+        href += '/api/user/validate?email=' + email + '&token=' + token;
+        if (user) {
+            var _user = {email: email, href: href};
+            var html = jade.renderFile(path.join(__dirname, '../template/activeEmail.jade'), {user: _user});
+            var mailOption = {
+                to: email,
+                subject: 'iotMaster: Confirm Your Email Address',
+                html: html
+            };
+            email_util.sendMail(mailOption, callback);
+        }
+    });
+};
+
 // Registration
 exports.route('/register').post(function (req, res) {
     var email = req.body.email;
@@ -96,35 +119,17 @@ exports.route('/register').post(function (req, res) {
                         });
                         return;
                     }
-                    var token = uuid.v4();
-                    User.resetToken(email, token, function (err, user, msg) {
+                    resetEmailActivationToken(email, function (err, body) {
                         if (err) {
                             res.send({error: err});
                             return;
                         }
-                        var host = req.get('Host');
-                        var href = "http://" + host;
-                        href += '/api/user/validate?email=' + email + '&token=' + token;
-                        if (user) {
-                            var _user = {email: email, href: href};
-                            var html = jade.renderFile(path.join(__dirname, '../template/activeEmail.jade'), {user: _user});
-                            var mailOption = {
-                                to: email,
-                                subject: 'iotMaster: Confirm Your Email Address',
-                                html: html
-                            };
-                            email_util.sendMail(mailOption, function (err, body) {
-                                if (err) {
-                                    res.send({error: err});
-                                    return;
-                                }
-                                res.send({
-                                    jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
-                                    user: user
-                                });
-                            });
-                        }
+                        res.send({
+                            jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
+                            user: user
+                        });
                     });
+
                 });
             } catch (err) {
                 res.send({
@@ -142,32 +147,12 @@ exports.route('/register').post(function (req, res) {
 
 exports.route('/activeAccount').get(function (req, res) {
     var email = req.user.email;
-    var token = uuid.v4();
-    User.resetToken(email, token, function (err, user, msg) {
-        if (err || !user) {
+    resetEmailActivationToken(email, function (err, body) {
+        if (err) {
             res.send({error: err});
             return;
         }
-        if (user) {
-            var host = req.get('Host');
-            var href = "http://" + host;
-            var logo = href + '/images/logo.png';
-            href += '/api/user/validate?email=' + email + '&token=' + token;
-            var _user = {email: email, href: href, logo: logo};
-            var html = jade.renderFile(path.join(__dirname, '../template/activeEmail.jade'), {user: _user});
-            var mailOption = {
-                to: email,
-                subject: 'iotMaster: Confirm Your Email Address',
-                html: html
-            };
-            email_util.sendMail(mailOption, function (err, body) {
-                if (err) {
-                    res.send({error: err});
-                    return;
-                }
-                res.send({message: msg});
-            });
-        }
+        res.send({message: msg});
     });
 });
 
