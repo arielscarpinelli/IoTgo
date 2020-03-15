@@ -3,7 +3,8 @@ angular.module('iotgo')
     function ($scope, $window, User) {
       $scope.hideSpan = function () {
         $('#checkActiveSpan').hide();
-        User.activeAccount(function () {
+        User.activeAccount(function (payload) {
+            alert(payload);
         });
       }
     }
