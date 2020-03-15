@@ -48,7 +48,7 @@ exports.route('/auth').get((request, response) => {
 		return unauthorized(res, "Invalid response_type");
 	}
 
-	return response.redirect('/oauth?client_id=' + oauthClientConfig.clientId + '&redirect_uri=' + request.query.redirect_uri + '&state=' + request.query.state);
+	return response.redirect('/oauth?client_id=' + oauthClientConfig.clientId + '&provider=' + oauthClientConfig.provider + '&redirect_uri=' + request.query.redirect_uri + '&state=' + request.query.state);
 });
 
 
