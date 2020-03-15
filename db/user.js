@@ -81,7 +81,7 @@ schema.static('resetToken', function (email, token, callback) {
         return callback(err);
       }
 
-      callback(null, user.toObject({transform: transform}), 'Reset token success!');
+      callback(null, user.toObject({transform: transform}));
     });
   });
 });

@@ -51,8 +51,8 @@ exports.use(activedAccountOnly.unless({
 let resetEmailActivationToken = function(email, callback) {
     var token = uuid.v4();
     User.resetToken(email, token, function (err, user, msg) {
-        if (err) {
-            res.send({error: err});
+        if (err || !user) {
+            res.send({error: err || msg});
             return;
         }
         var host = config.host;
@@ -152,7 +152,7 @@ exports.route('/activeAccount').get(function (req, res) {
             res.send({error: err});
             return;
         }
-        res.send({message: msg});
+        res.send({message: 'Reset token success!'});
     });
 });
 
