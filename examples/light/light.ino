@@ -26,8 +26,65 @@
 
 WebSocketsClient webSocket;
 
+void ICACHE_RAM_ATTR toggle();
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
+
 // We have a very simple state. Either our light is on or off
 bool state = false;
+
+void setup() {
+
+#ifdef DEBUG_ESP_PORT
+    DEBUG_ESP_PORT.begin(115200);
+#endif    
+
+    WiFi.begin(WLAN_SSID, WLAN_PASS);
+
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+
+    webSocket.beginSslWithCA("api.iotmaster.dev", 443, "/api/ws?deviceid=" DEVICE_ID "&apikey=" API_KEY, CA_cert);
+    webSocket.onEvent(webSocketEvent);
+
+    pinMode(LED_BUILTIN, OUTPUT);
+    applyState();
+
+    pinMode(D1, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(D1), toggle, CHANGE);
+
+    
+}
+
+void loop() {
+    webSocket.loop();
+}
+
+void ICACHE_RAM_ATTR toggle() {
+  state = !state;
+  applyState();
+  publishState();
+}
+
+void applyState() {
+    digitalWrite(LED_BUILTIN, state ? LOW : HIGH);
+}
+
+void publishState() {
+
+    const size_t capacity = JSON_OBJECT_SIZE(20);
+    DynamicJsonDocument doc(capacity);
+
+    doc["action"] = "update";
+    doc["deviceid"] = DEVICE_ID;
+    doc["apikey"] = API_KEY;
+    JsonObject params  = doc.createNestedObject("params");
+    params["on"] = state;
+
+    String json;
+    serializeJson(doc, json);  
+    
+    webSocket.sendTXT(json);
+
+}
 
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
@@ -78,55 +135,6 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
 
 }
 
-
-void setup() {
-
-#ifdef DEBUG_ESP_PORT
-    DEBUG_ESP_PORT.begin(115200);
-#endif    
-
-    WiFi.begin(WLAN_SSID, WLAN_PASS);
-
-    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-
-    webSocket.beginSslWithCA("iotmaster.dev", 443, "/api/ws?deviceid=" DEVICE_ID "&apikey=" API_KEY, CA_cert);
-    webSocket.onEvent(webSocketEvent);
-
-    pinMode(LED_BUILTIN, OUTPUT);
-    applyState();
-
-    pinMode(D1, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(D1), toggle, CHANGE);
-
-    
-}
-
-void loop() {
-    webSocket.loop();
-}
-
-void applyState() {
-    digitalWrite(LED_BUILTIN, state ? LOW : HIGH);
-}
-
-void publishState() {
-
-    const size_t capacity = JSON_OBJECT_SIZE(20);
-    DynamicJsonDocument doc(capacity);
-
-    doc["action"] = "update";
-    doc["deviceid"] = DEVICE_ID;
-    doc["apikey"] = API_KEY;
-    JsonObject params  = doc.createNestedObject("params");
-    params["on"] = state;
-
-    String json;
-    serializeJson(doc, json);  
-    
-    webSocket.sendTXT(json);
-
-}
-
 void sendRecipt(const char *sequence) {
 
     const size_t capacity = JSON_OBJECT_SIZE(20);
@@ -140,10 +148,4 @@ void sendRecipt(const char *sequence) {
     
     webSocket.sendTXT(json);
   
-}
-
-void toggle() {
-  state = !state;
-  applyState();
-  publishState();
 }
