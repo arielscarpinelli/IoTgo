@@ -1,7 +1,7 @@
 <div class="row row-centered login">
   <div class="col-xs-12 col-sm-6 col-md-5 col-centered">
     <h1>Welcome Back to iotMaster</h1>
-    <div class="alert alert-info" role="alert" ng-show="oauth">
+    <div class="alert alert-info" role="alert" ng-if="oauth">
       By signing in, you are authorizing Google to access you devices
     </div>
     <form ng-submit="login()">

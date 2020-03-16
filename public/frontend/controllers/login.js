@@ -2,7 +2,7 @@ angular.module('iotgo').
   controller('LoginCtrl', [ '$scope', '$window', '$location', 'User',
     function ($scope, $window, $location, User) {
 
-      if (($location.search().returnTo || '').contains('/oauth')) {
+      if (($location.search().returnTo || '').startsWith('/oauth')) {
         $scope.oauth = true;
       }
 
