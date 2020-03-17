@@ -44,6 +44,7 @@ void setup() {
 
     webSocket.beginSslWithCA("api.iotmaster.dev", 443, "/api/ws?deviceid=" DEVICE_ID "&apikey=" API_KEY, CA_cert);
     webSocket.onEvent(webSocketEvent);
+    webSocket.enableHeartbeat(15000, 3000, 2);
 
     pinMode(LED_BUILTIN, OUTPUT);
     applyState();
