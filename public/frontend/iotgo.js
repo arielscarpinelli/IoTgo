@@ -16,6 +16,9 @@ angular.module('iotgo', ['ngRoute', 'ngResource', 'gRecaptcha', 'angular-carouse
 			}).when('/login', {
 				templateUrl: '/views/login.html',
 				controller: 'LoginCtrl'
+			}).when('/password-reset', {
+				templateUrl: '/views/password-reset.html',
+				controller: 'PasswordResetCtrl'
 			}).when('/signup', {
 				templateUrl: '/views/signup.html',
 				controller: 'SignupCtrl'

@@ -32,6 +32,7 @@ var ACTIVE_TIME = 24 * 60 * 60 * 1000;
 var oauthTokenSchema = new Schema({
 	refreshToken: {type: String, index: true},
 	provider: {type: String},
+    createdAt: {type: Date}
 });
 
 var schema = new Schema({
@@ -65,10 +66,6 @@ schema.static('resetToken', function (email, token, callback) {
 
     if (!user) {
       return callback(null, null, 'The user does not exist!');
-    }
-
-    if (user.isActivated) {
-      return callback(null, null, 'The user has activated, no active again!');
     }
 
     that.findOneAndUpdate({email: email}, {
@@ -179,10 +176,12 @@ schema.static('setOAuthRefreshToken', async function (apikey, provider, refreshT
 
 	if (existing) {
 		existing.refreshToken = refreshToken;
+		existing.createdAt = now();
 	} else {
 		user.oAuthTokens.push({
 			provider,
-			refreshToken
+			refreshToken,
+            createdAt: now()
 		});
 	}
 
@@ -194,6 +193,44 @@ schema.static('findByOAuthRefreshToken', async function (provider, refreshToken)
   return this.findOne({
 	'oAuthTokens.refreshToken': refreshToken,
 	'oAuthTokens.provider': provider
+  });
+});
+
+schema.static('resetPassword', function (email, password, token, callback) {
+  this.where('email', email).findOne(function (err, user) {
+    if (err) {
+      callback(err);
+      return;
+    }
+
+    if (!user) {
+      callback('User does not exist!');
+      return;
+    }
+
+    if (!user.validExpire || !user.token) {
+      return callback('Illegal request!', null);
+    }
+
+    if (user.validExpire && user.validExpire < Date.now()) {
+      return callback('Reset time has expired, please create a new request!', null);
+    }
+
+    if (user.token && user.token !== token) {
+      return callback('Illegal token!', null);
+    }
+
+    user.password = password;
+    user.token = null;
+    user.validExpire = null;
+    user.save(function (err, user) {
+      if (err) {
+        callback(err);
+        return;
+      }
+
+      callback(null, user.toObject({transform: transform}))
+    });
   });
 });
 

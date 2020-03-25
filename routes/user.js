@@ -22,30 +22,32 @@ var path = require('path');
 var recaptchaSecret = config.recaptcha.secret;
 var recaptchaUrl = config.recaptcha.url;
 
-var activedAccountOnly = function (req, res, next) {
+var activatedAccountOnly = function (req, res, next) {
     var isActivated = req.user.isActivated;
     if (isActivated) {
         next();
     } else {
-        var err = new Error('Actived Account only area!');
+        var err = new Error('Activated Account only area!');
         err.status = 401;
         next(err);
     }
 };
 
-activedAccountOnly.unless = unless;
+activatedAccountOnly.unless = unless;
 /**
  * Exports
  */
 module.exports = exports = express.Router();
 
+const openPaths = ['/api/user/register', '/api/user/login', '/api/user/validate', '/api/user/password-reset-email', '/api/user/password-reset'];
+
 // Enable Json Web Token
 exports.use(expressJwt(config.jwt).unless({
-    path: ['/api/user/register', '/api/user/login', '/api/user/validate']
+    path: openPaths
 }));
 
-exports.use(activedAccountOnly.unless({
-    path: ['/api/user/register', '/api/user/login', '/api/user/activeAccount', '/api/user/validate']
+exports.use(activatedAccountOnly.unless({
+    path: openPaths.concat(['/api/user/activeAccount'])
 }));
 
 let resetEmailActivationToken = function(email, callback) {
@@ -175,6 +177,66 @@ exports.route('/validate').get(function (req, res) {
         } else {
             res.send(msg);
         }
+    });
+});
+
+exports.route('/password-reset-email').post(function (req, res) {
+    var email = req.body.email;
+    if (!email) {
+        res.send({
+            error: 'Email address must not be empty!'
+        });
+        return;
+    }
+
+    var token = uuid.v4();
+    User.resetToken(email, token, function (err, user, msg) {
+        if (err || !user) {
+            res.send({error: err || msg});
+            return;
+        }
+        var host = config.host;
+        var href = "https://" + host;
+        href += '/password-reset?email=' + email + '&token=' + token;
+        if (user) {
+            var _user = {email: email, href: href};
+            var html = jade.renderFile(path.join(__dirname, '../template/passwordResetEmail.jade'), {user: _user});
+            var mailOption = {
+                to: email,
+                subject: 'iotMaster: Password reset',
+                html: html
+            };
+            email_util.sendMail(mailOption, function (err, body) {
+                if (err) {
+                    res.send({error: err});
+                    return;
+                }
+                res.send({});
+            });
+        }
+    });
+});
+
+exports.route('/password-reset').post(function (req, res) {
+    var email = req.body.email;
+    var newPassword = req.body.password;
+    var token = req.body.token;
+    if (!email || !token || typeof newPassword !== 'string' || !newPassword.trim()) {
+        res.send({
+            error: 'Email address, token and password must not be empty!'
+        });
+        return;
+    }
+    User.resetPassword(email, newPassword, token, function (err, user) {
+        if (err) {
+            res.send({error: err});
+            return;
+        }
+
+        res.send({
+            jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
+            user: user
+        });
     });
 });
 

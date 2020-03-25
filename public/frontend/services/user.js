@@ -38,6 +38,31 @@ angular.module('iotgo')
 					callback('Log in failed!');
 				});
 			},
+			sendPasswordResetEmail: function (email, callback) {
+				$http.post(Settings.httpServer + '/api/user/password-reset-email', {email: email}).success(function (data) {
+					if (data.error) {
+						callback(data.error);
+						return;
+					}
+					callback(null, data);
+				}).error(function () {
+					callback('Recover password failed!');
+				});
+			},
+			passwordReset: function (email, password, token, callback) {
+				$http.post(Settings.httpServer + '/api/user/password-reset', {email: email, password: password, token: token}).success(function (data) {
+					if (data.error) {
+						callback(data.error);
+						return;
+					}
+					session = data;
+					$window.sessionStorage.session = JSON.stringify(session);
+					$window.sessionStorage.token = session.jwt;
+					callback(undefined, session.user);
+				}).error(function () {
+					callback('Reset password failed!');
+				});
+			},
 			logout: function () {
 				session = undefined;
 				$window.sessionStorage.session = undefined;
