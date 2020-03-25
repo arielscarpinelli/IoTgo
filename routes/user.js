@@ -59,7 +59,7 @@ let resetEmailActivationToken = function(email, callback) {
         }
         var host = config.host;
         var href = "https://" + host;
-        href += '/api/user/validate?email=' + email + '&token=' + token;
+        href += '/api/user/validate?email=' + encodeURIComponent(email) + '&token=' + token;
         if (user) {
             var _user = {email: email, href: href};
             var html = jade.renderFile(path.join(__dirname, '../template/activeEmail.jade'), {user: _user});
@@ -197,7 +197,7 @@ exports.route('/password-reset-email').post(function (req, res) {
         }
         var host = config.host;
         var href = "https://" + host;
-        href += '/password-reset?email=' + email + '&token=' + token;
+        href += '/password-reset?email=' + encodeURIComponent(email) + '&token=' + token;
         if (user) {
             var _user = {email: email, href: href};
             var html = jade.renderFile(path.join(__dirname, '../template/passwordResetEmail.jade'), {user: _user});
