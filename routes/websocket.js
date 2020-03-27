@@ -1,12 +1,14 @@
 /**
  * Dependencies
  */
-const Server = require('ws').Server;
+const {Server} = require('ws');
 const protocol = require('../protocol/index');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const url = require('url');
-const Device = require('../db').Device;
+const {Device} = require('../db');
+const {unauthorizedError} = require('../lib/errors');
+const debug = require('debug')('websocket');
 
 /**
  * Private variables and functions
@@ -16,15 +18,13 @@ const devices = {}; // { deviceid: [ws, ws, ws] }
 const apps = {};  // { deviceid: [ws, ws, ws] }
 
 const clean = function (ws) {
-	if (ws.deviceid) {
-		const deviceid = ws.deviceid;
+	const deviceid = ws.deviceid;
+	if (deviceid) {
+		debug('clean ' + deviceid);
 		if (Array.isArray(devices[deviceid]) && devices[deviceid][0] === ws) {
 			delete devices[deviceid];
-			protocol.postMessage({
-				type: 'device.online',
-				deviceid: deviceid,
-				online: false
-			});
+			protocol.notifyDeviceOnline(deviceid, false)
+				.catch(debug);
 		}
 
 		var pos, wsList = apps[deviceid];
@@ -42,9 +42,13 @@ const Types = {
 };
 
 const getType = function (msg) {
-	if (msg.action && msg.deviceid && msg.apikey) return Types.REQUEST;
+	if (msg.action && msg.deviceid && msg.apikey) {
+		return Types.REQUEST;
+	}
 
-	if (typeof msg.error === 'number') return Types.RESPONSE;
+	if (typeof msg.error === 'number') {
+		return Types.RESPONSE;
+	}
 
 	return Types.UNKNOWN;
 };
@@ -74,7 +78,6 @@ protocol.on('device.update', function (req) {
 });
 
 protocol.on('device.online', function (req) {
-	console.debug(JSON.stringify(req));
 	postRequestToApps(req);
 });
 
@@ -84,103 +87,126 @@ protocol.on('app.update', function (req) {
 	});
 });
 
-const connectionHandler = async function (ws, req) {
+const handleError = ws => function (err) {
+	debug(err);
+	debug(err.stack);
+	if (ws) {
+		const code = err.status || err.error || 500;
+		ws.send(JSON.stringify({
+			error: code,
+			reason: err.reason || err.message,
+			deviceid: err.deviceid,
+			apikey: err.apikey,
+			sequence: err.sequence
+		}));
+		if ((code === 401) || (code === 403)) {
+			ws.close();
+		}
+	}
+};
+
+const handleMessage = async function (ws, msg) {
+
+	debug('req ' + (ws.deviceid || ws.apikey), msg);
 
 	try {
-		const query = url.parse(req.url, true).query;
-
-		if (query.deviceid && query.apikey) {
-
-			const device = await Device.exists(query.apikey, query.deviceid);
-			if (!device) {
-				throw new Error("device not found for " + query.apikey + " " + query.deviceid);
-			}
-
-			ws.deviceid = query.deviceid;
-		} else if (query.jwt) {
-			const decoded = jwt.verify(query.jwt, config.jwt.secret, config.jwt);
-			ws.apikey = decoded.apikey;
-		} else {
-			throw new Error("no credentials");
-		}
-	} catch (e) {
-		console.error(e);
-		ws.send(JSON.stringify({
-			error: 401,
-			message: e.message
-		}));
-		ws.close();
+		msg = JSON.parse(msg);
+	} catch (err) {
+		// Ignore non-JSON message
+		return;
 	}
 
-	const handleMessage = async function (msg) {
-
-		try {
-			msg = JSON.parse(msg);
-		} catch (err) {
-			// Ignore non-JSON message
+	switch (getType(msg)) {
+		case Types.UNKNOWN:
 			return;
-		}
 
-		switch (getType(msg)) {
-			case Types.UNKNOWN:
+		case Types.RESPONSE:
+			protocol.postResponse(msg);
+			return;
+
+		case Types.REQUEST:
+			msg.ws = ws;
+
+			if (ws.deviceid) {
+				msg.deviceid = ws.deviceid;
+			}
+
+			if (ws.apikey) {
+				msg.apikey = ws.apikey;
+			}
+
+			const res = await protocol.postRequest(msg);
+
+			debug('res ' + (ws.deviceid || ws.apikey), res);
+			ws.send(JSON.stringify(res));
+
+			if (res.error) {
 				return;
+			}
 
-			case Types.RESPONSE:
-				protocol.postResponse(msg);
-				return;
+			// Message sent from device
+			if (protocol.utils.fromDevice(msg)) {
+				devices[msg.deviceid] = devices[msg.deviceid] || [];
 
-			case Types.REQUEST:
-				msg.ws = ws;
-
-				if (ws.deviceid) {
-					msg.deviceid = ws.deviceid;
-				}
-
-				if (ws.apikey) {
-					msg.apikey = ws.apikey;
-				}
-
-				const res = await protocol.postRequest(msg);
-
-				ws.send(JSON.stringify(res));
-
-				if (res.error) return;
-
-				// Message sent from device
-				if (protocol.utils.fromDevice(msg)) {
-					devices[msg.deviceid] = devices[msg.deviceid] || [];
-
-					if (devices[msg.deviceid][0] === ws) return;
-
-					devices[msg.deviceid] = [ws];
-					protocol.postMessage({
-						type: 'device.online',
-						deviceid: msg.deviceid,
-						online: true
-					});
-
+				if (devices[msg.deviceid][0] === ws) {
 					return;
 				}
 
+				devices[msg.deviceid] = [ws];
+				return protocol.notifyDeviceOnline(msg.deviceid, true);
+			} else {
 				// Message sent from apps
 				apps[msg.deviceid] = apps[msg.deviceid] || [];
 
-				if (apps[msg.deviceid].indexOf(ws) !== -1) return;
+				if (apps[msg.deviceid].indexOf(ws) !== -1) {
+					return;
+				}
 
 				apps[msg.deviceid].push(ws);
-		}
-	};
-
-	ws.on('message', msg => handleMessage(msg)
-		.catch(err => {
-			console.error(err);
-			if (ws) {
-				ws.send(JSON.stringify({
-					error: 500,
-					message: err.message
-				}));
 			}
-		}));
+
+	}
+};
+
+
+const connectionHandler = async function (ws, req) {
+
+	ws.bufferedMessages = [];
+
+
+	ws.on('message', msg => {
+
+		if (!ws.deviceid && !ws.apikey) {
+			// haven't checked credentials yet
+			ws.bufferedMessages.push(msg);
+			return;
+		}
+
+		handleMessage(ws, msg)
+			.catch(handleError(ws))
+	});
+
+	const query = url.parse(req.url, true).query;
+
+	if (query.deviceid && query.apikey) {
+
+		const device = await Device.exists(query.apikey, query.deviceid);
+		if (!device) {
+			throw unauthorizedError("device not found for " + query.apikey + " " + query.deviceid);
+		}
+
+		ws.deviceid = query.deviceid;
+	} else if (query.jwt) {
+		const decoded = jwt.verify(query.jwt, config.jwt.secret, config.jwt);
+		ws.apikey = decoded.apikey;
+	} else {
+		throw unauthorizedError("no credentials");
+	}
+
+	ws.bufferedMessages.forEach(msg => handleMessage(ws, msg)
+		.catch(handleError(ws)));
+
+	delete ws.bufferedMessages;
 
 	ws.on('close', function () {
 		clean(ws);
@@ -205,16 +231,7 @@ module.exports = function (httpServer) {
 
 	server.on('connection', (ws, req) =>
 		connectionHandler(ws, req)
-			.catch(err => {
-				console.error(err);
-				if (ws) {
-					ws.send(JSON.stringify({
-						error: 500,
-						message: err.message
-					}));
-					ws.close();
-				}
-			}));
+			.catch(handleError(ws)));
 
 	return server;
 };

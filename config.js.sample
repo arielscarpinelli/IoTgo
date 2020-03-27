@@ -30,7 +30,6 @@ module.exports = {
           domain:'',                    //Mailgun Domain Name
           from:''                       //Mailgun Default SMTP Login Email
   },
-  upgradeUrl:"http://v.itead.cc/api/upgrade",
   oauth: {
     google: {
       clientId: "clientId",

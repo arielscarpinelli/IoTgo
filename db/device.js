@@ -1,68 +1,75 @@
 /**
  * Dependencies
  */
-var mongoose = require('mongoose');
-var uuid = require('uuid');
+const mongoose = require('mongoose');
+const uuid = require('uuid');
 
 /**
  * Private variables and functions
  */
-var Schema = mongoose.Schema;
+const Schema = mongoose.Schema;
 
-var now = function () {
-  return new Date();
+const now = function () {
+	return new Date();
 };
 
-var empty = function () {
-  return {};
+const empty = function () {
+	return {};
 };
 
 /**
  * Exports
  */
 var schema = new Schema({
-  name: { type: String, required: true },
-  group: { type: String, default: '' },
-  type: { type: String, required: true, index: true },
-  deviceid: { type: String, required: true, index: true, default: uuid.v4 },
-  apikey: { type: String, required: true, index: true },
-  createdAt: { type: Date, index: true, default: now },
-  online: { type: Boolean, index: true, default: false },
-  params: { type: Schema.Types.Mixed, default: empty },
-  attributes: { type: Schema.Types.Mixed, default: empty },
-  traits: [ String ]
+	name: {type: String, required: true},
+	group: {type: String, default: ''},
+	type: {type: String, required: true, index: true},
+	deviceid: {type: String, required: true, index: true, default: uuid.v4},
+	apikey: {type: String, required: true, index: true},
+	createdAt: {type: Date, index: true, default: now},
+	online: {type: Boolean, index: true, default: false},
+	params: {type: Schema.Types.Mixed, default: empty},
+	attributes: {type: Schema.Types.Mixed, default: empty},
+	traits: [String]
 });
 
-schema.static('exists', function (apikey, deviceid, callback) {
-  return this.where({ apikey: apikey, deviceid: deviceid }).findOne(callback);
+schema.statics.exists = function (apikey, deviceid) {
+	return this.where({apikey: apikey, deviceid: deviceid}).findOne();
+};
+
+schema.statics.getDeviceByDeviceid = function (deviceid) {
+	return this.where({deviceid: deviceid}).findOne();
+};
+
+schema.statics.getDevicesByApikey = function (apikey) {
+	return this.where({apikey: apikey}).find();
+};
+
+schema.statics.getDefaultTraitsForType = function (type) {
+	switch (type) {
+		case "SWITCH":
+			return ["OnOff"];
+		case "LIGHT":
+			return ["OnOff"];
+		case "THERMOSTAT":
+			return ["TemperatureSetting"];
+
+	}
+};
+
+
+schema.pre('save', function () {
+	this.paramsModified = this.isModified('params');
 });
 
-schema.static('getDeviceByDeviceid', function (deviceid, callback) {
-  return this.where({ deviceid: deviceid }).findOne(callback);
+schema.post('save', function (doc) {
+	if(!this.paramsModified) {
+		require('../protocol').deviceChange(doc);
+	}
 });
 
-schema.static('getDevicesByApikey', function (apikey, callback) {
-  return this.where('apikey', apikey).find(callback);
-});
-
-schema.static('getDefaultTraitsForType', function (type) {
-  switch(type) {
-    case "SWITCH":
-      return ["OnOff"];
-    case "LIGHT":
-      return ["OnOff"];
-    case "THERMOSTAT":
-      return ["TemperatureSetting"];
-
-  }
-});
-
-schema.post('save', function(doc) {
-  require('../protocol').deviceChange(doc);
-});
-
-schema.post('remove', function(doc) {
-  require('../protocol').deviceChange(doc);
+schema.post('remove', function (doc) {
+	require('../protocol').deviceChange(doc);
 });
 
 module.exports = mongoose.model('Device', schema);

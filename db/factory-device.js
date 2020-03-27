@@ -1,18 +1,18 @@
 /**
  * Dependencies
  */
-var mongoose = require('mongoose');
-var uuid = require('uuid');
+const mongoose = require('mongoose');
+const uuid = require('uuid');
 
 /**
  * Private variables and functions
  */
-var Schema = mongoose.Schema;
+const Schema = mongoose.Schema;
 
 /**
  * Exports
  */
-var schema = new Schema({
+const schema = new Schema({
   name: { type: String, required: true },
   type: { type: String, required: true, index: true },
   deviceid: { type: String, required: true, index: true, default: uuid.v4 },
@@ -20,9 +20,8 @@ var schema = new Schema({
   createdAt: { type: Date, required: true }
 });
 
-schema.static('exists', function (apikey, deviceid, callback) {
-  this.where({ apikey: apikey, deviceid: deviceid }).findOne(callback);
-});
-
+schema.statics.exists = function (apikey, deviceid) {
+  return this.where({ apikey: apikey, deviceid: deviceid }).findOne();
+};
 
 module.exports = mongoose.model('FactoryDevice', schema);

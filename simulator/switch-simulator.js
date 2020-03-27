@@ -8,8 +8,6 @@ const state = {
     on: false
 };
 
-// TODO: read keyboard to switch the state
-
 const ws = new WebSocket(HOST + "?deviceid=" + DEVICE_ID + "&apikey=" + APIKEY, {
     perMessageDeflate: false
 });
@@ -51,7 +49,7 @@ ws.on('message', function incoming(msg) {
     }
 });
 
-var stdin = process.openStdin();
+const stdin = process.openStdin();
 stdin.on('data', function(chunk) {
     const str = "" + chunk;
     if (str === "on\n") {

@@ -1,33 +1,19 @@
 /**
  * Dependencies
  */
-var express = require('express');
-var expressJwt = require('express-jwt');
-var jsonWebToken = require('jsonwebtoken');
-var unless = require('express-unless');
-var request = require('request');
-var git_util = require('../lib/git-util');
-var ip_util = require('../lib/ip-util');
-var config = require('../config');
-var db = require('../db/index');
-var packagejson = require('../package');
-var User = db.User;
-var Device = db.Device;
-var FactoryDevice = db.FactoryDevice;
+const express = require('express');
+const expressJwt = require('express-jwt');
+const jsonWebToken = require('jsonwebtoken');
+const unless = require('express-unless');
+const config = require('../config');
+const {User, Device, FactoryDevice} = require('../db/index');
+const asyncHandler = require('express-async-handler');
+const { validationError, unauthorizedError, notFoundError } = require('../lib/errors');
 
 /**
  * Private variables and functions
  */
-var authenticate = function (email, password, callback) {
-    if (!email in config.admin || config.admin[email] !== password) {
-        callback(null, false);
-        return;
-    }
-
-    callback(null, {email: email, isAdmin: true});
-};
-
-var adminOnly = function (req, res, next) {
+const adminOnly = function (req, res, next) {
     if (!req.user.isAdmin) {
         var err = new Error('Admin only area!');
         err.status = 401;
@@ -54,87 +40,35 @@ exports.use(adminOnly.unless({
 }));
 
 // Login
-exports.route('/login').post(function (req, res) {
-    var email = req.body.email;
-    var password = req.body.password;
+exports.route('/login').post(asyncHandler(async function (req, res) {
+    const email = req.body.email;
+    const password = req.body.password;
     if (!email || !password) {
-        res.send({
-            error: 'Email address and password must not be empty!'
-        });
-        return;
+        throw validationError('Email address and password must not be empty!');
     }
 
-    authenticate(email, password, function (err, user) {
-        if (err || !user) {
-            res.send({
-                error: 'Email address or password is not correct!'
-            });
-            return;
-        }
+    if (!email in config.admin || config.admin[email] !== password) {
+        throw new unauthorizedError('Email address or password is not correct!');
+    }
 
-        res.send({
-            jwt: jsonWebToken.sign(user, config.jwt.secret),
-            user: user
-        });
-    });
-});
+    const user = {
+        email,
+        isAdmin: true
+    };
 
-var upgrade = function (params, req, res) {
-    ip_util.getLocalIP(function (ip) {
-        request.post({
-            url: config.upgradeUrl,
-            form: {domain: params.domain, name: params.name, version: params.version, ip: ip}
-        }, function (err, httpResponse, body) {
-            if (err) {
-                res.send({
-                    error: 'get remote version  Failed!'
-                });
-                return;
-            }
-            var json = JSON.parse(body);
-            var script;
-            if (json && 200 === json.flag) {
-                script = "<script>$('#checkDiv').show();</script>";
-                return res.json(script);
-            }
-            script = "<script>console.log('" + json.message + "');</script>";
-            res.json(script);
-        });
-    });
-};
-
-exports.route('/checkUpdate').get(function (req, res) {
-    var domain = config.host;
-    git_util.isRepo(function (flag) {
-        if (flag) {
-            git_util.getRepoName(function (err, name) {
-                if (err) {
-                    res.send({
-                        error: 'get Reposity Name Failed!'
-                    });
-                    return;
-                }
-                git_util.getCurrentVersion(function (version) {
-                    version = version || '0.0.1';
-                    var params = {domain: domain, name: name, version: version};
-                    upgrade(params, req, res);
-                });
-            });
-            return;
-        }
-        var name = 'IoTgo';
-        var version = packagejson['version'];
-        var params = {domain: domain, name: name, version: version};
-        upgrade(params, req, res);
+    res.send({
+        jwt: jsonWebToken.sign(user, config.jwt.secret),
+        user
     });
 
-});
+}));
+
 // User management
-exports.route('/users').get(function (req, res) {
-    var limit = Number(req.query.limit) || config.page.limit;
-    var skip = Number(req.query.skip) || 0;
+exports.route('/users').get(asyncHandler(async function (req, res) {
+    const limit = Number(req.query.limit) || config.page.limit;
+    const skip = Number(req.query.skip) || 0;
 
-    var condition = {};
+    const condition = {};
     if (req.query.createdAtFrom) {
         condition.createdAt = condition.createdAt ? condition.createdAt : {};
         condition.createdAt.$gte = new Date(req.query.createdAtFrom);
@@ -144,60 +78,41 @@ exports.route('/users').get(function (req, res) {
         condition.createdAt.$lte = new Date(req.query.createdAtTo);
     }
 
-    User.find(condition).select('-password').skip(skip).limit(limit)
-        .sort({createdAt: config.page.sort}).exec(function (err, users) {
-        if (err) {
-            res.send({
-                error: 'Get user list failed!'
-            });
-            return;
-        }
+    const users = await User.find(condition).select('-password').skip(skip).limit(limit)
+        .sort({createdAt: config.page.sort});
 
-        res.send(users);
-    });
-});
+    res.send(users);
 
-exports.route('/users/:apikey').get(function (req, res) {
-    User.findOne({'apikey': req.params.apikey}).select('-password')
-        .exec(function (err, user) {
-            if (err || !user) {
-                res.send({
-                    error: 'User does not exist!'
-                });
-                return;
-            }
+}));
 
-            res.send(user);
-        });
-}).delete(function (req, res) {
-    User.findOneAndRemove({'apikey': req.params.apikey}, function (err, user) {
-        if (err || !user) {
-            res.send({
-                error: 'User does not exist!'
-            });
-            return;
-        }
+exports.route('/users/:apikey').get(asyncHandler(async function (req, res) {
+    const user = await User.findOne({'apikey': req.params.apikey}).select('-password');
 
+    if (!user) {
+        throw new notFoundError('User does not exist!');
+    }
+    res.send(user);
+
+}));
+
+exports.route('/users/:apikey').delete(asyncHandler(async function (req, res) {
+    const user = await User.findOneAndRemove({'apikey': req.params.apikey});
+
+    if (!user) {
+        throw notFoundError('User does not exist!');
+    }
         // Delete all devices belong to user
-        Device.remove({apikey: req.params.apikey}, function (err) {
-            if (err) {
-                res.send({
-                    error: 'Delete user\'s devices failed!'
-                });
-                return;
-            }
+    await Device.remove({apikey: req.params.apikey});
 
-            res.send(user);
-        });
-    });
-});
+    res.send(user);
+}));
 
 // Device management
-exports.route('/devices').get(function (req, res) {
-    var limit = Number(req.query.limit) || 0;
-    var skip = Number(req.query.skip) || 0;
+exports.route('/devices').get(asyncHandler(async function (req, res) {
+    const limit = Number(req.query.limit) || 0;
+    const skip = Number(req.query.skip) || 0;
 
-    var condition = {};
+    const condition = {};
     if (req.query.createdAtFrom) {
         condition.createdAt = condition.createdAt || {};
         condition.createdAt.$gte = new Date(req.query.createdAtFrom);
@@ -227,39 +142,25 @@ exports.route('/devices').get(function (req, res) {
         condition.lastModified.$lte = new Date(req.query.lastModifiedAtTo);
     }
 
-    Device.find(condition).select('-params').skip(skip).limit(limit)
-        .sort({createdAt: config.page.sort}).exec(function (err, devices) {
-        if (err) {
-            res.send({
-                error: 'Get device list failed!'
-            });
-            return;
-        }
+    const devices = await Device.find(condition).select('-params').skip(skip).limit(limit)
+        .sort({createdAt: config.page.sort});
+    res.send(devices);
+}));
 
-        res.send(devices);
-    });
-});
-
-exports.route('/devices/:deviceid').get(function (req, res) {
-    Device.findOne({'deviceid': req.params.deviceid})
-        .exec(function (err, device) {
-            if (err || !device) {
-                res.send({
-                    error: 'Device does not exist!'
-                });
-                return;
-            }
-
-            res.send(device);
-        });
-});
+exports.route('/devices/:deviceid').get(asyncHandler(async function (req, res) {
+    const device = await Device.findOne({'deviceid': req.params.deviceid});
+    if(!device) {
+        throw new notFoundError('Device does not exist!');
+    }
+    res.send(device);
+}));
 
 // Factory device management
-exports.route('/factorydevices').get(function (req, res) {
-    var limit = Number(req.query.limit) || 0;
-    var skip = Number(req.query.skip) || 0;
+exports.route('/factorydevices').get(asyncHandler(async function (req, res) {
+    const limit = Number(req.query.limit) || 0;
+    const skip = Number(req.query.skip) || 0;
 
-    var condition = {};
+    const condition = {};
     if (req.query.createdAtFrom) {
         condition.createdAt = condition.createdAt || {};
         condition.createdAt.$gte = new Date(req.query.createdAtFrom);
@@ -281,50 +182,33 @@ exports.route('/factorydevices').get(function (req, res) {
         condition.apikey = req.query.apikey;
     }
 
-    FactoryDevice.find(condition).skip(skip).limit(limit)
+    const factoryDevices = await FactoryDevice.find(condition).skip(skip).limit(limit)
         .sort({createdAt: config.page.sort})
-        .exec(function (err, factoryDevices) {
-            if (err) {
-                res.send({
-                    error: 'Get factory device list failed!'
-                });
-                return;
-            }
+        .exec();
 
-            res.send(factoryDevices);
-        });
-});
+    res.send(factoryDevices);
+}));
 
-exports.route('/factorydevices/create').post(async function (req, res) {
-    var name = req.body.name,
+exports.route('/factorydevices/create').post(asyncHandler(async function (req, res) {
+    const name = req.body.name,
         type = req.body.type,
         qty = Number(req.body.qty),
         createdAt = new Date();
 
     if (!name || !name.trim() || !type || !type.trim()
         || 'number' !== typeof qty || 0 === qty) {
-        res.send({
-            error: 'Factory device name, type and qty must not be empty!'
-        });
-        return;
+        throw new validationError('Factory device name, type and qty must not be empty!');
     }
 
-    var i = 0;
-    var devices = [];
-    var promises = [];
-    do {
-        var factoryDevice = new FactoryDevice({
+
+    const promises = Array(qty)
+        .map(() => new FactoryDevice({
             name: name,
             type: type,
             createdAt: createdAt
-        });
-        promises.push(factoryDevice.save());
-        devices.push(factoryDevice);
+        }).save());
 
-        i += 1;
-    } while (i < qty);
-
-    await Promise.all(promises);
+    const devices = await Promise.all(promises);
 
     /*
      if (req.query.file) {
@@ -347,4 +231,4 @@ exports.route('/factorydevices/create').post(async function (req, res) {
      */
 
     res.send(devices);
-});
+}));

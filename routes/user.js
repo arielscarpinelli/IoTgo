@@ -6,10 +6,7 @@ const expressJwt = require('express-jwt');
 const jsonWebToken = require('jsonwebtoken');
 const unless = require('express-unless');
 const config = require('../config');
-const db = require('../db/index');
-const User = db.User;
-const Device = db.Device;
-const FactoryDevice = db.FactoryDevice;
+const { User } = require('../db/index');
 const { httpsGet } = require('../lib/request-util');
 const { sendMail } = require('../lib/email-util');
 const pug = require('pug');
@@ -17,6 +14,7 @@ const uuid = require('uuid');
 const path = require('path');
 const asyncHandler = require('express-async-handler');
 const { validationError, unauthorizedError } = require('../lib/errors');
+const userDeviceRoutes = require('./user-device');
 
 /**
  * Private variables
@@ -52,6 +50,8 @@ exports.use(expressJwt(config.jwt).unless({
 exports.use(activatedAccountOnly.unless({
     path: openPaths.concat(['/api/user/activeAccount'])
 }));
+
+exports.use('/device', userDeviceRoutes);
 
 const resetActivationTokenAndSendEmail = async function(email) {
     const token = uuid.v4();
@@ -214,172 +214,4 @@ exports.route('/password').post(asyncHandler(async function (req, res) {
     res.send({message: "password updated"});
 
 }));
-
-// Device management
-exports.route('/device').get(function (req, res) {
-    Device.getDevicesByApikey(req.user.apikey, function (err, devices) {
-        if (err || !devices.length) {
-            res.send([]);
-            return;
-        }
-
-        res.send(devices);
-    });
-}).post(function (req, res) {
-    if (!req.body.name || !req.body.type) {
-        res.send({
-            error: 'Device name and type must be specified!'
-        });
-        return;
-    }
-
-    var device = {
-        name: req.body.name,
-        group: req.body.group,
-        type: req.body.type,
-        apikey: req.user.apikey,
-        traits: req.body.traits || Device.getDefaultTraitsForType(req.body.type),
-        attributes: req.body.attributes
-    };
-
-    (new Device(device)).save(function (err, device) {
-        if (err) {
-            res.send({
-                error: 'Create device failed!'
-            });
-            return;
-        }
-
-        res.send(device);
-    });
-
-});
-
-exports.route('/device/add').post(function (req, res) {
-    var name = req.body.name;
-    var apikey = req.body.apikey;
-    var deviceid = req.body.deviceid;
-    if ('string' !== typeof name || !name.trim() ||
-        'string' !== typeof apikey || !apikey.trim() ||
-        'string' !== typeof deviceid || !deviceid.trim()) {
-        res.send({
-            error: 'Device name, id and apikey must not be empty!'
-        });
-        return;
-    }
-
-    FactoryDevice.exists(apikey, deviceid, function (err, device) {
-        if (err) {
-            res.send({
-                error: 'Add device failed!'
-            });
-            return;
-        }
-
-        if (!device) {
-            res.send({
-                error: 'Device does not exist!'
-            });
-            return;
-        }
-
-        Device.where('deviceid', deviceid).findOne(function (err, device) {
-            if (err) {
-                res.send({
-                    error: 'Add device failed!'
-                });
-                return;
-            }
-
-            if (device) {
-                res.send({
-                    error: (device.apikey === req.user.apikey) ?
-                        'Device has already been added!' : 'Device belongs to other user!'
-                });
-                return;
-            }
-
-            device = new Device({
-                name: name,
-                group: req.body.group ? req.body.group : '',
-                type: deviceid.substr(0, 2),
-                deviceid: deviceid,
-                apikey: req.user.apikey
-            });
-            device.save(function (err, device) {
-                if (err) {
-                    res.send({
-                        error: 'Add device failed!'
-                    });
-                    return;
-                }
-
-                res.send(device);
-            });
-        });
-    });
-});
-
-exports.route('/device/:deviceid').get(function (req, res) {
-    Device.exists(req.user.apikey, req.params.deviceid, function (err, device) {
-        if (err || !device) {
-            res.send({
-                error: 'Device does not exist!'
-            });
-            return;
-        }
-
-        res.send(device);
-    });
-}).post(function (req, res) {
-    if (typeof req.body.name !== 'string' ||
-        typeof req.body.group !== 'string') {
-        res.send({
-            error: 'Device name and group must not be empty!'
-        });
-        return;
-    }
-
-    Device.exists(req.user.apikey, req.params.deviceid, function (err, device) {
-        if (err || !device) {
-            res.send({
-                error: 'Device does not exist!'
-            });
-            return;
-        }
-
-        device.name = req.body.name;
-        device.group = req.body.group;
-        device.save(function (err, device) {
-            if (err) {
-                res.send({
-                    error: 'Save device failed!'
-                });
-                return;
-            }
-
-            res.send(device);
-        });
-    });
-}).delete(function (req, res) {
-    Device.exists(req.user.apikey, req.params.deviceid, function (err, device) {
-        if (err || !device) {
-            res.send({
-                error: 'Device does not exist!'
-            });
-            return;
-        }
-
-        device.remove(function (err, device) {
-            if (err) {
-                res.send({
-                    error: 'Delete device failed!'
-                });
-            }
-
-            res.send(device);
-        });
-    });
-});
-
 

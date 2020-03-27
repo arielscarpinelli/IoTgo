@@ -7,6 +7,7 @@ const expressJwt = require('express-jwt');
 const jsonWebToken = require('jsonwebtoken');
 const {User} = require('../db/index');
 const asyncHandler = require('express-async-handler');
+const debug = require('debug')('oauth');
 
 module.exports = exports = express.Router();
 
@@ -24,11 +25,11 @@ const findOAuthClientConfig = (request) => {
 };
 
 const unauthorized = function (res, error, desc) {
-	console.log(error);
+	debug(error);
 	if (desc) {
-		console.log(desc);
+		debug(desc);
 	}
-	res.status(403)
+	res.status(401)
 		.json({
 			error: error
 		});
@@ -73,7 +74,6 @@ exports.route('/token').post(asyncHandler(async (req, res) => {
 	const grantType = req.query.grant_type
 		? req.query.grant_type : req.body.grant_type;
 	const secondsInDay = 86400; // 60 * 60 * 24
-	const HTTP_STATUS_OK = 200;
 
 	const oauthClientConfig = findOAuthClientConfig(req);
 
@@ -130,7 +130,7 @@ exports.route('/token').post(asyncHandler(async (req, res) => {
 		const refreshToken = req.query.refresh_token
 			? decodeURIComponent(req.query.refresh_token) : req.body.refresh_token;
 
-		let error = "Invalid token";
+		const error = "Invalid token";
 		try {
 			const user = await User.findByOAuthRefreshToken(oauthClientConfig.provider, refreshToken);
 
@@ -153,8 +153,8 @@ exports.route('/token').post(asyncHandler(async (req, res) => {
 			return unauthorized(res, error, err);
 		}
 	} else {
-		return unauthorized(res, "Invalid grant_type", err);
+		return unauthorized(res, "Invalid grant_type");
 	}
-	res.status(HTTP_STATUS_OK)
-		.json(obj);
+
+	res.json(obj);
 }));
