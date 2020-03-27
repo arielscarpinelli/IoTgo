@@ -8,25 +8,25 @@
   "dependencies": {
     "actions-on-google": "^2.12.0",
     "bcrypt": "^3.0.8",
-    "body-parser": "~1.8.1",
+    "body-parser": "^1.19.0",
     "bufferutil": "^4.0.1",
-    "debug": "~2.0.0",
+    "debug": "^4.1.1",
     "express": "^4.17.1",
+    "express-async-handler": "^1.1.4",
     "express-jwt": "^5.3.1",
     "express-unless": "~0.0.0",
     "git-origin-url": "^0.3.0",
     "git-tag": "^0.2.0",
     "is-git-repo": "^0.1.2",
-    "jade": "^1.9.1",
     "jsonwebtoken": "^8.5.1",
     "mailgun-js": "^0.22.0",
-    "mongoose": "^5.8.11",
-    "morgan": "^1.9.1",
-    "request": "^2.53.0",
+    "mongoose": "^5.9.6",
+    "morgan": "^1.10.0",
+    "pug": "^2.0.4",
+    "request": "^2.88.2",
     "serve-favicon": "^2.5.0",
     "utf-8-validate": "^5.0.2",
-    "utils-merge": "~1.0.0",
     "uuid": "~2.0.1",
-    "ws": "^7.2.1"
+    "ws": "^7.2.3"
   }
 }

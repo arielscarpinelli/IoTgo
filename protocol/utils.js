@@ -1,7 +1,3 @@
-/**
- * Dependencies
- */
-var mixin = require('utils-merge');
 
 /**
  * Exports

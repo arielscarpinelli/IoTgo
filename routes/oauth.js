@@ -5,8 +5,8 @@ const config = require('../config');
 const express = require('express');
 const expressJwt = require('express-jwt');
 const jsonWebToken = require('jsonwebtoken');
-const { User } = require('../db/index');
-const util = require('util');
+const {User} = require('../db/index');
+const asyncHandler = require('express-async-handler');
 
 module.exports = exports = express.Router();
 
@@ -14,18 +14,16 @@ const findOAuthClientConfig = (request) => {
 	const clientId = request.query.client_id
 		? request.query.client_id : request.body.client_id;
 
-	const oauthClientConfig = Object.keys(config.oauth)
+	return Object.keys(config.oauth)
 		.map(provider =>
 			Object.assign({
 				provider
 			}, config.oauth[provider])
 		)
 		.find(oauthConfig => (oauthConfig.clientId === clientId));
-
-	return oauthClientConfig;
 };
 
-let unauthorized = function (res, error, desc) {
+const unauthorized = function (res, error, desc) {
 	console.log(error);
 	if (desc) {
 		console.log(desc);
@@ -44,7 +42,7 @@ exports.route('/auth').get((request, response) => {
 		return unauthorized(res, "Invalid client_id");
 	}
 
-	if(request.query.response_type !== 'code') {
+	if (request.query.response_type !== 'code') {
 		return unauthorized(res, "Invalid response_type");
 	}
 
@@ -62,16 +60,16 @@ exports.route('/code').post(expressJwt(config.jwt), (req, res) => {
 
 });
 
-let generateAccessToken = function (oauthClientConfig, apiKey, expiresIn) {
-	const accessToken = jsonWebToken.sign({
+const generateAccessToken = function (oauthClientConfig, apiKey, expiresIn) {
+	return jsonWebToken.sign({
 		clientId: oauthClientConfig.clientId,
 		apikey: apiKey
 	}, config.jwt.secret, {
 		expiresIn
 	});
-	return accessToken;
 };
-exports.route('/token').post(async (req, res) => {
+
+exports.route('/token').post(asyncHandler(async (req, res) => {
 	const grantType = req.query.grant_type
 		? req.query.grant_type : req.body.grant_type;
 	const secondsInDay = 86400; // 60 * 60 * 24
@@ -98,11 +96,11 @@ exports.route('/token').post(async (req, res) => {
 		const decoded = jsonWebToken.verify(code, config.jwt.secret, config.jwt);
 
 		if (decoded.redirectUri !== redirectUri) {
-			return unauthorized(res,"Invalid redirect_uri");
+			return unauthorized(res, "Invalid redirect_uri");
 		}
 
 		if (decoded.clientId !== oauthClientConfig.clientId) {
-			return unauthorized(res,"Invalid code");
+			return unauthorized(res, "Invalid code");
 		}
 
 		const apiKey = decoded.apikey;
@@ -154,7 +152,9 @@ exports.route('/token').post(async (req, res) => {
 		} catch (err) {
 			return unauthorized(res, error, err);
 		}
+	} else {
+		return unauthorized(res, "Invalid grant_type", err);
 	}
 	res.status(HTTP_STATUS_OK)
 		.json(obj);
-});
+}));

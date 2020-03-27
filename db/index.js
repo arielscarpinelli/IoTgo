@@ -1,10 +1,10 @@
 /**
  * Dependencies
  */
-var User = require('./user');
-var Device = require('./device');
-var FactoryDevice = require('./factory_device');
-var mongoose = require('mongoose');
+const User = require('./user');
+const Device = require('./device');
+const FactoryDevice = require('./factory_device');
+const mongoose = require('mongoose');
 
 /**
  * Exports

@@ -1,39 +1,42 @@
 /**
  * Dependencies
  */
-var express = require('express');
-var expressJwt = require('express-jwt');
-var jsonWebToken = require('jsonwebtoken');
-var unless = require('express-unless');
-var config = require('../config');
-var db = require('../db/index');
-var User = db.User;
-var Device = db.Device;
-var FactoryDevice = db.FactoryDevice;
-var https = require('https');
-var email_util = require('../lib/email-util');
-var jade = require('jade');
-var uuid = require('uuid');
-var path = require('path');
+const express = require('express');
+const expressJwt = require('express-jwt');
+const jsonWebToken = require('jsonwebtoken');
+const unless = require('express-unless');
+const config = require('../config');
+const db = require('../db/index');
+const User = db.User;
+const Device = db.Device;
+const FactoryDevice = db.FactoryDevice;
+const { httpsGet } = require('../lib/request-util');
+const { sendMail } = require('../lib/email-util');
+const pug = require('pug');
+const uuid = require('uuid');
+const path = require('path');
+const asyncHandler = require('express-async-handler');
+const { validationError, unauthorizedError } = require('../lib/errors');
 
 /**
  * Private variables
  */
-var recaptchaSecret = config.recaptcha.secret;
-var recaptchaUrl = config.recaptcha.url;
+const recaptchaSecret = config.recaptcha.secret;
+const recaptchaUrl = config.recaptcha.url;
 
-var activatedAccountOnly = function (req, res, next) {
-    var isActivated = req.user.isActivated;
+const activatedAccountOnly = function (req, res, next) {
+    const isActivated = req.user.isActivated;
     if (isActivated) {
         next();
     } else {
-        var err = new Error('Activated Account only area!');
+        const err = new Error('Activated Account only area!');
         err.status = 401;
         next(err);
     }
 };
 
 activatedAccountOnly.unless = unless;
+
 /**
  * Exports
  */
@@ -50,262 +53,167 @@ exports.use(activatedAccountOnly.unless({
     path: openPaths.concat(['/api/user/activeAccount'])
 }));
 
-let resetEmailActivationToken = function(email, callback) {
-    var token = uuid.v4();
-    User.resetToken(email, token, function (err, user, msg) {
-        if (err || !user) {
-            res.send({error: err || msg});
-            return;
-        }
-        var host = config.host;
-        var href = "https://" + host;
-        href += '/api/user/validate?email=' + encodeURIComponent(email) + '&token=' + token;
-        if (user) {
-            var _user = {email: email, href: href};
-            var html = jade.renderFile(path.join(__dirname, '../template/activeEmail.jade'), {user: _user});
-            var mailOption = {
-                to: email,
-                subject: 'iotMaster: Confirm Your Email Address',
-                html: html
-            };
-            email_util.sendMail(mailOption, callback);
+const resetActivationTokenAndSendEmail = async function(email) {
+    const token = uuid.v4();
+
+    await User.resetToken(email, token);
+
+    const html = pug.renderFile(path.join(__dirname, '../template/activeEmail.pug'), {
+        user: {
+            email: email,
+            href: "https://" + config.host + '/api/user/validate?email=' + encodeURIComponent(email) + '&token=' + token
         }
     });
+
+    return await sendMail({
+        to: email,
+        subject: 'iotMaster: Confirm Your Email Address',
+        html: html
+    });
+
 };
 
 // Registration
-exports.route('/register').post(function (req, res) {
-    var email = req.body.email;
-    var password = req.body.password;
+exports.route('/register').post(asyncHandler(async function (req, res) {
+    const email = req.body.email;
+    const password = req.body.password;
     if (!email || !password) {
-        res.send({
-            error: 'Email address and password must not be empty!'
-        });
-        return;
+        throw validationError('Email address and password must not be empty!');
     }
 
     // Google reCAPTCHA verification
-    var response = req.body.response;
+    const response = req.body.response;
     if (!response) {
-        res.send({
-            error: 'reCAPTCHA verification is required!'
-        });
+        throw validationError('reCAPTCHA verification is required!');
     }
 
-    var url = recaptchaUrl +
+    const url = recaptchaUrl +
         '?secret=' + recaptchaSecret +
         '&response=' + response;
 
-    https.get(url, function (recaptchaRes) {
-        recaptchaRes.setEncoding('utf8');
+    const recaptchaResult = await httpsGet(url);
 
-        var data = '';
-        recaptchaRes.on('data', function (chunk) {
-            data += chunk;
-        });
-        recaptchaRes.on('end', function () {
-            try {
-                data = JSON.parse(data);
-                if (!data.success) {
-                    res.send({
-                        error: 'reCAPTCHA verification failed!'
-                    });
-                    return;
-                }
+    if (!recaptchaResult.success) {
+        throw validationError('reCAPTCHA verification failed!');
+    }
 
-                User.register(email, password, function (err, user) {
-                    if (err) {
-                        console.log(err);
-                        res.send({
-                            error: 'Email address already exists, please choose another one.'
-                        });
-                        return;
-                    }
-                    resetEmailActivationToken(email, function (err, body) {
-                        if (err) {
-                            res.send({error: err});
-                            return;
-                        }
-                        res.send({
-                            jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
-                            user: user
-                        });
-                    });
+    const user = await User.register(email, password);
 
-                });
-            } catch (err) {
-                res.send({
-                    error: 'reCAPTCHA verification failed! Please try again later.'
-                });
-            }
-        });
-    }).on('error', function () {
-        res.send({
-            error: 'reCAPTCHA verification failed! Please try again later.'
-        });
+    await resetActivationTokenAndSendEmail(email);
+
+    res.send({
+        jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
+        user: user
     });
 
-});
+}));
 
-exports.route('/activeAccount').get(function (req, res) {
-    var email = req.user.email;
-    resetEmailActivationToken(email, function (err, body) {
-        if (err) {
-            res.send({error: err});
-            return;
-        }
-        res.send({message: 'Reset token success!'});
-    });
-});
+exports.route('/activeAccount').get(asyncHandler(async function (req, res) {
+    const email = req.user.email;
+    await resetActivationTokenAndSendEmail(email);
 
-exports.route('/validate').get(function (req, res) {
-    var email = req.query.email;
-    var token = req.query.token;
+    res.send({message: 'Reset token success!'});
+}));
+
+exports.route('/validate').get(asyncHandler(async function (req, res) {
+    const email = req.query.email;
+    const token = req.query.token;
+
     if (!email || !token) {
-        res.send({
-            error: 'Email address and token must not be empty!'
-        });
-        return;
+        throw validationError('Email address and token must not be empty!');
     }
-    User.active(email, token, function (err, user, msg) {
-        if (err) {
-            res.send({error: err});
-            return;
-        }
-        if (user) {
-            res.redirect('/login');
-        } else {
-            res.send(msg);
-        }
-    });
-});
 
-exports.route('/password-reset-email').post(function (req, res) {
-    var email = req.body.email;
+    const user = await User.activate(email, token);
+    res.redirect('/login');
+
+}));
+
+exports.route('/password-reset-email').post(asyncHandler(async function (req, res) {
+    const email = req.body.email;
     if (!email) {
-        res.send({
-            error: 'Email address must not be empty!'
-        });
-        return;
+        throw validationError('Email address must not be empty!');
     }
 
-    var token = uuid.v4();
-    User.resetToken(email, token, function (err, user, msg) {
-        if (err || !user) {
-            res.send({error: err || msg});
-            return;
-        }
-        var host = config.host;
-        var href = "https://" + host;
-        href += '/password-reset?email=' + encodeURIComponent(email) + '&token=' + token;
-        if (user) {
-            var _user = {email: email, href: href};
-            var html = jade.renderFile(path.join(__dirname, '../template/passwordResetEmail.jade'), {user: _user});
-            var mailOption = {
-                to: email,
-                subject: 'iotMaster: Password reset',
-                html: html
-            };
-            email_util.sendMail(mailOption, function (err, body) {
-                if (err) {
-                    res.send({error: err});
-                    return;
-                }
-                res.send({});
-            });
+    const token = uuid.v4();
+    await User.resetToken(email, token);
+
+    const html = pug.renderFile(path.join(__dirname, '../template/passwordResetEmail.pug'), {
+        user: {
+            email: email,
+            href: "https://" + config.host + '/password-reset?email=' + encodeURIComponent(email) + '&token=' + token
         }
     });
-});
 
-exports.route('/password-reset').post(function (req, res) {
-    var email = req.body.email;
-    var newPassword = req.body.password;
-    var token = req.body.token;
+    await sendMail({
+        to: email,
+        subject: 'iotMaster: Password reset',
+        html: html
+    });
+
+    res.send({message: 'Reset password email sent with success!'});
+
+}));
+
+exports.route('/password-reset').post(asyncHandler(async function (req, res) {
+    const email = req.body.email;
+    const newPassword = req.body.password;
+    const token = req.body.token;
     if (!email || !token || typeof newPassword !== 'string' || !newPassword.trim()) {
-        res.send({
-            error: 'Email address, token and password must not be empty!'
-        });
-        return;
+        throw validationError('Email address, token and password must not be empty!');
     }
-    User.resetPassword(email, newPassword, token, function (err, user) {
-        if (err) {
-            res.send({error: err});
-            return;
-        }
 
-        res.send({
-            jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
-            user: user
-        });
+    const user = await User.resetPassword(email, newPassword, token);
+
+    res.send({
+        jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
+        user: user
     });
-});
+
+}));
 
 // Login
-exports.route('/login').post(function (req, res) {
-    var email = req.body.email;
-    var password = req.body.password;
+exports.route('/login').post(asyncHandler(async function (req, res) {
+    const email = req.body.email;
+    const password = req.body.password;
     if (!email || !password) {
-        res.send({
-            error: 'Email address and password must not be empty!'
-        });
-        return;
+        throw validationError('Email address and password must not be empty!');
     }
 
-    User.authenticate(email, password, function (err, user) {
-        if (err || !user) {
-            res.send({
-                error: 'Email address or password is not correct!'
-            });
-            return;
-        }
+    const user = await User.authenticate(email, password);
 
-        res.send({
-            jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
-            user: user
-        });
+    if(!user) {
+        throw unauthorizedError( 'Email address or password is not correct!');
+    }
+
+    res.send({
+        jwt: jsonWebToken.sign(user, config.jwt.secret, config.jwt.options),
+        user: user
     });
-});
+}));
 
 // Password management
-exports.route('/password').post(function (req, res) {
-    var oldPassword = req.body.oldPassword;
-    var newPassword = req.body.newPassword;
+exports.route('/password').post(asyncHandler(async function (req, res) {
+    const email = req.user.email;
+
+    const oldPassword = req.body.oldPassword;
+    const newPassword = req.body.newPassword;
 
     if (typeof oldPassword !== 'string' || !oldPassword.trim() ||
         typeof newPassword !== 'string' || !newPassword.trim()) {
-        res.send({
-            error: 'Old password and new password must not be empty!'
-        });
-        return;
+        throw validationError('Old password and new password must not be empty!');
     }
 
-    User.authenticate(req.user.email, oldPassword, function (err, user) {
-        if (err) {
-            res.send({
-                error: 'Change password failed!'
-            });
-            return;
-        }
+    const user = await User.authenticate(email, oldPassword);
 
-        if (!user) {
-            res.send({
-                error: 'Old password is not correct!'
-            });
-            return;
-        }
+    if (!user) {
+        throw unauthorizedError( 'Old password is not correct!');
+    }
 
-        User.setPassword(req.user.email, newPassword, function (err) {
-            if (err) {
-                res.send({
-                    error: 'Change password failed!'
-                });
-                return;
-            }
+    await User.setPassword(email, newPassword);
 
-            res.send({});
-        });
-    });
-});
+    res.send({message: "password updated"});
+
+}));
 
 // Device management
 exports.route('/device').get(function (req, res) {

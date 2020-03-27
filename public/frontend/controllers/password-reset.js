@@ -16,9 +16,7 @@ angular.module('iotgo').
             $window.alert(err);
             return;
           }
-          if (ok) {
-            $window.alert("Check your email for instructions");
-          }
+          $window.alert("Check your email for instructions");
         });
       };
 
@@ -28,8 +26,9 @@ angular.module('iotgo').
             $window.alert(err);
             return;
           }
-
-          $location.path('/devices');
+          if (ok) {
+            $location.path('/devices');
+          }
         });
       };
     }

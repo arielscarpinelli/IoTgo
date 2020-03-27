@@ -2,19 +2,18 @@
  * Dependencies
  */
 var db = require('../db/index');
-var User = db.User;
 var Device = db.Device;
 var FactoryDevice = db.FactoryDevice;
 var validate = require('./types');
 var interceptors = require('./interceptors');
 var EventEmitter = require('events').EventEmitter;
-var mixin = require('utils-merge');
 
 /**
  * Exports
  */
-module.exports = exports = {};
-mixin(exports, EventEmitter.prototype);
+module.exports = exports = {
+  ...EventEmitter.prototype
+};
 
 exports.register = function (req, callback) {
   FactoryDevice.exists(req.apikey, req.deviceid, function (err, device) {
@@ -61,7 +60,13 @@ exports.update = function (req, callback) {
       return;
     }
 
-    mixin(device.params, req.params);
+    const reqParams = req.params;
+
+    device.params = {
+      ...device.params,
+      reqParams
+    };
+
     device.markModified('params');
     if (req.params.timers) {
       device.markModified('params.timers');

@@ -19,8 +19,8 @@ angular.module('iotgo')
 					$window.sessionStorage.session = JSON.stringify(session);
 					$window.sessionStorage.token = session.jwt;
 					callback(undefined, session.user);
-				}).error(function () {
-					callback('Register user failed!');
+				}).error(function (data) {
+					callback(data && data.error || 'Register user failed!');
 				});
 			},
 			login: function (email, password, callback) {
@@ -34,8 +34,8 @@ angular.module('iotgo')
 					$window.sessionStorage.session = JSON.stringify(session);
 					$window.sessionStorage.token = session.jwt;
 					callback(undefined, session.user);
-				}).error(function () {
-					callback('Log in failed!');
+				}).error(function (data) {
+					callback((data && data.error) || 'Log in failed!');
 				});
 			},
 			sendPasswordResetEmail: function (email, callback) {
@@ -45,8 +45,8 @@ angular.module('iotgo')
 						return;
 					}
 					callback(null, data);
-				}).error(function () {
-					callback('Recover password failed!');
+				}).error(function (data) {
+					callback((data && data.error) || 'Recover password failed!');
 				});
 			},
 			passwordReset: function (email, password, token, callback) {
@@ -59,8 +59,8 @@ angular.module('iotgo')
 					$window.sessionStorage.session = JSON.stringify(session);
 					$window.sessionStorage.token = session.jwt;
 					callback(undefined, session.user);
-				}).error(function () {
-					callback('Reset password failed!');
+				}).error(function (data) {
+					callback((data && data.error) || 'Reset password failed!');
 				});
 			},
 			logout: function () {
@@ -80,8 +80,8 @@ angular.module('iotgo')
 					}
 
 					callback(undefined);
-				}).error(function () {
-					callback('Change password failed!');
+				}).error(function (data) {
+					callback(data && data.error || 'Change password failed!');
 				});
 			},
 			getUser: function () {
@@ -112,7 +112,7 @@ angular.module('iotgo')
 			},
 			activeAccount: function (callback) {
 				$http.get('/api/user/activeAccount').success(function (data) {
-					callback(data);
+					callback((data && data.message) || 'Check your email');
 				}).error(function () {
 					callback('Active Account failed,Please retry!');
 				});
