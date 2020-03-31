@@ -30,7 +30,7 @@ void ICACHE_RAM_ATTR toggle();
 void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 
 // We have a very simple state. Either our light is on or off
-bool state = false;
+volatile bool state = false;
 
 void setup() {
 
@@ -47,11 +47,17 @@ void setup() {
     webSocket.enableHeartbeat(15000, 3000, 2);
 
     pinMode(LED_BUILTIN, OUTPUT);
+    // Depending on the relay type, you may need to use OUTPUT_OPEN_DRAIN
+    pinMode(D1, OUTPUT);
     applyState();
 
-    pinMode(D1, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(D1), toggle, CHANGE);
+    // We are using D3 as a gnd source for the push button. It is useful in D1 mini boards where
+    // there is only one gnd output that you may use to feed the relay.
+    pinMode(D3, OUTPUT);
+    digitalWrite(D3, LOW);
 
+    pinMode(D2, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(D2), toggle, FALLING);
     
 }
 
@@ -59,14 +65,22 @@ void loop() {
     webSocket.loop();
 }
 
+// This is a work around crappy pushbuttons
+static long lastToggleMillis = 0;
 void ICACHE_RAM_ATTR toggle() {
-  state = !state;
-  applyState();
-  publishState();
+  long currentTimeMillis = millis();
+  if (currentTimeMillis >= (lastToggleMillis + 2000)) {
+    state = !state;
+    applyState();
+    DEBUG_MSG(state);
+    lastToggleMillis = currentTimeMillis;
+  }
+  //publishState();
 }
 
 void applyState() {
     digitalWrite(LED_BUILTIN, state ? LOW : HIGH);
+    digitalWrite(D1, state ? HIGH : LOW);
 }
 
 void publishState() {
