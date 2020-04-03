@@ -68,14 +68,13 @@ void loop() {
 // This is a work around crappy pushbuttons
 static long lastToggleMillis = 0;
 void ICACHE_RAM_ATTR toggle() {
-  long currentTimeMillis = millis();
-  if (currentTimeMillis >= (lastToggleMillis + 2000)) {
-    state = !state;
-    applyState();
-    DEBUG_MSG(state);
-    lastToggleMillis = currentTimeMillis;
-  }
-  //publishState();
+    long currentTimeMillis = millis();
+    if (currentTimeMillis >= (lastToggleMillis + 2000)) {
+        state = !state;
+        applyState();
+        publishState();
+        lastToggleMillis = currentTimeMillis;
+    }
 }
 
 void applyState() {

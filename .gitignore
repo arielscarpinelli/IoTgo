@@ -32,3 +32,6 @@ config.js
 .DS_Store
 
 config.h
+
+.vscode
+.pio
