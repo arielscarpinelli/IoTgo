@@ -60,7 +60,7 @@ exports.update = async function (req) {
 
 	device.params = {
 		...device.params,
-		reqParams
+		...reqParams
 	};
 
 	device.markModified('params');

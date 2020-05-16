@@ -38,6 +38,7 @@ void setup() {
     DEBUG_ESP_PORT.begin(115200);
 #endif    
 
+    WiFi.mode(WIFI_STA);    
     WiFi.begin(WLAN_SSID, WLAN_PASS);
 
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
