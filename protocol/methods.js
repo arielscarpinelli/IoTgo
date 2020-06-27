@@ -86,7 +86,7 @@ exports.query = async function (req) {
 	}
 
 	if (!req.params || !req.params.length) {
-		throw interceptors(req, {
+		return interceptors(req, {
 			error: 0,
 			params: device.params
 		});

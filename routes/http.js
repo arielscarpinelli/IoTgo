@@ -13,8 +13,12 @@ module.exports = asyncHandler(async function (req, res) {
     return;
   }
 
-  const resBody = await protocol.postRequest(req.body);
-
-  res.send(resBody);
+  try {
+	  const resBody = await protocol.postRequest(req.body);
+	  res.send(resBody);
+  } catch (e) {
+  	const err = new Error(e.reason);
+  	err.status = e.error;
+  }
 
 });
