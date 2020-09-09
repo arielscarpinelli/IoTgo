@@ -42,10 +42,12 @@ ws.on('message', function incoming(msg) {
 
     if (msg.action === "update") {
         state.on = msg.params.on;
-        ws.send(JSON.stringify({
+        const response = JSON.stringify({
             error: 0,
             sequence: msg.sequence
-        }));
+        });
+        console.log(response);
+        ws.send(response);
     }
 });
 

@@ -7,6 +7,7 @@ const EventEmitter = require('events').EventEmitter;
 const Device = require('../db/index').Device;
 const config = require('../config');
 const utils = require('./utils');
+const debug = require('debug')('protocol');
 
 /**
  * Private variables and functions
@@ -46,6 +47,10 @@ const removePendingRequest = function (sequence) {
  */
 module.exports = exports = {
 	...EventEmitter.prototype
+};
+
+const getDeviceScopedSequence = function (req) {
+	return req.deviceid + '-' + req.sequence;
 };
 
 exports.postRequest = async function (req) {
@@ -93,24 +98,33 @@ exports.postRequest = async function (req) {
 	exports.emit('app.update', req);
 
 	return new Promise((resolve, reject) => {
-		pendingRequests[req.sequence] = {
+		const deviceScopedSequence = getDeviceScopedSequence(req);
+		pendingRequests[deviceScopedSequence] = {
 			req: req,
 			resolve: resolve,
 			reject: reject,
 			timer: setTimeout(removePendingRequest,
 				config.pendingRequestTimeout || 3000,
-				req.sequence)
+				deviceScopedSequence)
 		};
 	});
 };
 
 exports.postResponse = function (res) {
-	if (!res.sequence || !pendingRequests[res.sequence]) {
+	if (!res.sequence || !res.deviceid) {
 		return;
 	}
 
-	const pending = pendingRequests[res.sequence];
+	const deviceScopedSequence = getDeviceScopedSequence(res);
+	const pending = pendingRequests[deviceScopedSequence];
+
+	if (!pending) {
+		debug("response to req not found" + res.sequence);
+		return;
+	}
+
 	clearTimeout(pending.timer);
+	delete pendingRequests[deviceScopedSequence];
 
 	if (!res.error) {
 		methods.update(pending.req)
@@ -120,7 +134,6 @@ exports.postResponse = function (res) {
 		pending.reject(res);
 	}
 
-	delete pendingRequests[res.sequence];
 };
 
 exports.notifyDeviceOnline = async function (deviceid, online) {

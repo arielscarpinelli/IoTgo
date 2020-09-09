@@ -116,6 +116,16 @@ const handleMessage = async function (ws, msg) {
 		return;
 	}
 
+	msg.ws = ws;
+
+	if (ws.deviceid) {
+		msg.deviceid = ws.deviceid;
+	}
+
+	if (ws.apikey) {
+		msg.apikey = ws.apikey;
+	}
+
 	switch (getType(msg)) {
 		case Types.UNKNOWN:
 			return;
@@ -125,15 +135,6 @@ const handleMessage = async function (ws, msg) {
 			return;
 
 		case Types.REQUEST:
-			msg.ws = ws;
-
-			if (ws.deviceid) {
-				msg.deviceid = ws.deviceid;
-			}
-
-			if (ws.apikey) {
-				msg.apikey = ws.apikey;
-			}
 
 			const res = await protocol.postRequest(msg);
 
