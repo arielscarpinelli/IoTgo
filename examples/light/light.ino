@@ -11,6 +11,8 @@
 
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
 
 // https://github.com/Links2004/arduinoWebSockets/
 #include <WebSocketsClient.h>
@@ -31,6 +33,7 @@ void webSocketEvent(WStype_t type, uint8_t * payload, size_t length);
 
 // We have a very simple state. Either our light is on or off
 volatile bool state = false;
+volatile bool buttonPressed = false;
 
 void setup() {
 
@@ -60,10 +63,19 @@ void setup() {
     pinMode(D2, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(D2), toggle, FALLING);
     
+    ArduinoOTA.setHostname(HOSTNAME);
+    ArduinoOTA.begin();
 }
 
 void loop() {
+    if (buttonPressed) {
+        buttonPressed = false;
+        state = !state;
+        applyState();
+        publishState();
+    }
     webSocket.loop();
+    ArduinoOTA.handle();
 }
 
 // This is a work around crappy pushbuttons
@@ -71,9 +83,7 @@ static long lastToggleMillis = 0;
 void ICACHE_RAM_ATTR toggle() {
     long currentTimeMillis = millis();
     if (currentTimeMillis >= (lastToggleMillis + 2000)) {
-        state = !state;
-        applyState();
-        publishState();
+        buttonPressed = true;
         lastToggleMillis = currentTimeMillis;
     }
 }
