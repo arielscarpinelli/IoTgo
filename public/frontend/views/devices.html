@@ -170,7 +170,7 @@
       <div class="modal-body text-center">
         <div ng-include="activeDevice.type | typeToHtml:'/views/types/'"></div>
 
-        <div><pre>{{activeDevice.attributes | json}}</pre></div>
+        <div><pre ng-if="activeDevice.attributes">{{activeDevice.attributes | json}}</pre></div>
       </div>
 
       <div class="modal-footer">
