@@ -66,6 +66,14 @@ const getGoogleTrait = (trait) => {
 	return "action.devices.traits." + trait;
 };
 
+const getDefaultAttributesForTraits = (traits) => {
+	const attr = {};
+	if(traits.indexOf("TemperatureSetting") !== -1) {
+		attr["availableThermostatModes"] = ["off", "heat"];
+	}
+	return attr;
+};
+
 
 const updateDevice = async (execution, apikey, deviceid, commands) => {
 
@@ -198,7 +206,10 @@ app.onSync(async (body, headers) => {
 					id: device.deviceid,
 					type: getGoogleDeviceType(device.type),
 					traits: device.traits.map(getGoogleTrait),
-					attributes: device.attributes,
+					attributes: {
+						...getDefaultAttributesForTraits(device.traits),
+						...device.attributes
+					},
 					name: {
 						name: device.name,
 					},
