@@ -14,6 +14,7 @@ module.exports = asyncHandler(async function (req, res) {
   } catch (e) {
   	const err = new Error(e.reason);
   	err.status = e.error;
+  	throw err;
   }
 
 });
