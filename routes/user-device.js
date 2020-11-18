@@ -1,5 +1,5 @@
 const express = require('express');
-const {Device, FactoryDevice} = require('../db/index');
+const {Device, DeviceUpdate, FactoryDevice} = require('../db/index');
 const asyncHandler = require('express-async-handler');
 const {validationError, notFoundError} = require('../lib/errors');
 
@@ -80,6 +80,18 @@ exports.route('/:deviceid').get(asyncHandler(async function (req, res) {
 	res.send(device);
 
 }));
+
+exports.route('/:deviceid/updates').get(asyncHandler(async function (req, res) {
+	const device = await Device.exists(req.user.apikey, req.params.deviceid);
+
+	if (!device) {
+		throw notFoundError('Device does not exist!');
+	}
+
+	res.send(await DeviceUpdate.findByDeviceIdAndDateRange(req.params.deviceid, Date.parse(req.query.from), Date.parse(req.query.to)));
+
+}));
+
 
 exports.route('/:deviceid').post(asyncHandler(async function (req, res) {
 	if (typeof req.body.name !== 'string' ||

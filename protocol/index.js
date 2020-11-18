@@ -139,11 +139,7 @@ exports.postResponse = function (res) {
 exports.notifyDeviceOnline = async function (deviceid, online) {
 
 
-	const device = await Device.findOneAndUpdate({deviceid: deviceid}, {
-		$set: {
-			online: !!online,
-		}
-	});
+	const device = await Device.setOnline(deviceid, !!online);
 
 	exports.emit('device.online', {
 		action: 'sysmsg',
