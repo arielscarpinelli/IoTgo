@@ -168,9 +168,13 @@
       </div>
 
       <div class="modal-body text-center">
-        <div ng-include="activeDevice.type | typeToHtml:'/views/types/'"></div>
-
-        <div><pre ng-if="activeDevice.attributes">{{activeDevice.attributes | json}}</pre></div>
+        <div ng-if="!activeDevice.showRaw" ng-include="activeDevice.type | typeToHtml:'/views/types/'"></div>
+        <div ng-if="!activeDevice.showRaw"><button class="btn btn-link" ng-click="activeDevice.showRaw = true;">Raw</button></div>
+        <div class="device-params" ng-if="activeDevice.showRaw">
+          <pre>{{activeDevice.params | json}}</pre>
+          <button class="btn btn-link" ng-click="activeDevice.showRaw = false;">Close</button>
+        </div>
+        <div class="device-params" ng-if="activeDevice.attributes"><pre class="text-left">{{activeDevice.attributes | json}}</pre></div>
       </div>
 
       <div class="modal-footer">
